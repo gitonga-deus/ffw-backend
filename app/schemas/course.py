@@ -54,6 +54,9 @@ class ContentResponse(BaseModel):
     # Rich text specific fields
     rich_text_content: Optional[Any] = None  # JSON data
     
+    # Exercise specific fields
+    exercise: Optional[dict] = None
+    
     is_published: bool
     created_at: datetime
     updated_at: datetime
@@ -79,7 +82,7 @@ class ModuleWithContentResponse(BaseModel):
 class ContentCreate(BaseModel):
     """Schema for creating content."""
     module_id: str
-    content_type: str = Field(..., pattern="^(video|pdf|rich_text)$")
+    content_type: str = Field(..., pattern="^(video|pdf|rich_text|exercise)$")
     title: str = Field(..., min_length=1, max_length=255)
     order_index: int = Field(..., ge=0)
     
@@ -92,6 +95,9 @@ class ContentCreate(BaseModel):
     
     # Rich text specific fields
     rich_text_content: Optional[Any] = None
+    
+    # Exercise specific fields
+    exercise_data: Optional[dict] = None
     
     is_published: bool = False
 
@@ -129,3 +135,14 @@ class ModuleUpdate(BaseModel):
     description: Optional[str] = None
     order_index: Optional[int] = Field(None, ge=0)
     is_published: Optional[bool] = None
+
+
+class ContentOrderItem(BaseModel):
+    """Schema for a single content order item."""
+    id: str
+    order_index: int = Field(..., ge=0)
+
+
+class ContentReorderRequest(BaseModel):
+    """Schema for reordering content items."""
+    items: List[ContentOrderItem]

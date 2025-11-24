@@ -20,7 +20,8 @@ from app.schemas.course import (
     ContentResponse,
     ModuleCreate,
     ModuleUpdate,
-    ModuleResponse
+    ModuleResponse,
+    ContentReorderRequest
 )
 from app.schemas.user import (
     UserListResponse,
@@ -349,22 +350,95 @@ async def create_content(
             detail="vimeo_video_id is required for video content"
         )
     
-    # Create content
-    new_content = Content(
-        module_id=content_data.module_id,
-        content_type=content_data.content_type,
-        title=content_data.title,
-        order_index=content_data.order_index,
-        vimeo_video_id=content_data.vimeo_video_id,
-        video_duration=content_data.video_duration,
-        pdf_filename=content_data.pdf_filename,
-        rich_text_content=json.dumps(content_data.rich_text_content) if content_data.rich_text_content else None,
-        is_published=content_data.is_published
-    )
+    # Handle exercise content type
+    if content_data.content_type == "exercise":
+        # Import exercise service
+        from app.services.exercise_service import exercise_service
+        
+        # Validate exercise data
+        if not hasattr(content_data, 'exercise_data') or not content_data.exercise_data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="exercise_data is required for exercise content"
+            )
+        
+        exercise_data = content_data.exercise_data
+        
+        if not exercise_data.get('embed_code'):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="embed_code is required for exercise content"
+            )
+        
+        if not exercise_data.get('form_title'):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="form_title is required for exercise content"
+            )
+        
+        # Create content first
+        new_content = Content(
+            module_id=content_data.module_id,
+            content_type=content_data.content_type,
+            title=content_data.title,
+            order_index=content_data.order_index,
+            is_published=content_data.is_published
+        )
+        
+        db.add(new_content)
+        db.commit()
+        db.refresh(new_content)
+        
+        # Create exercise
+        try:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Creating exercise with embed_code length: {len(exercise_data['embed_code'])}")
+            logger.info(f"Embed code preview: {exercise_data['embed_code'][:200]}")
+            
+            exercise = exercise_service.create_exercise(
+                db=db,
+                content_id=new_content.id,
+                embed_code=exercise_data['embed_code'],
+                form_title=exercise_data['form_title'],
+                allow_multiple_submissions=exercise_data.get('allow_multiple_submissions', False)
+            )
+            logger.info(f"Exercise created successfully with ID: {exercise.id}")
+        except ValueError as e:
+            # Rollback content creation if exercise creation fails
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Exercise creation failed: {str(e)}")
+            logger.error(f"Embed code that failed: {exercise_data['embed_code']}")
+            
+            db.delete(new_content)
+            db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )
+    else:
+        # Create regular content (video, pdf, rich_text)
+        new_content = Content(
+            module_id=content_data.module_id,
+            content_type=content_data.content_type,
+            title=content_data.title,
+            order_index=content_data.order_index,
+            vimeo_video_id=content_data.vimeo_video_id,
+            video_duration=content_data.video_duration,
+            pdf_filename=content_data.pdf_filename,
+            rich_text_content=json.dumps(content_data.rich_text_content) if content_data.rich_text_content else None,
+            is_published=content_data.is_published
+        )
+        
+        db.add(new_content)
+        db.commit()
+        db.refresh(new_content)
     
-    db.add(new_content)
-    db.commit()
-    db.refresh(new_content)
+    # Recalculate progress for all enrollments if content is published
+    if new_content.is_published:
+        from app.services.progress_service import progress_service
+        progress_service.recalculate_all_enrollments(db)
     
     # Build response
     content_dict = {
@@ -383,7 +457,103 @@ async def create_content(
         "updated_at": new_content.updated_at
     }
     
+    # Add exercise data if content type is exercise
+    if new_content.content_type == "exercise":
+        from app.services.exercise_service import exercise_service
+        exercise = exercise_service.get_exercise_by_content_id(db, new_content.id)
+        if exercise:
+            content_dict["exercise"] = {
+                "id": exercise.id,
+                "form_id": exercise.form_id,
+                "embed_code": exercise.embed_code,
+                "form_title": exercise.form_title,
+                "allow_multiple_submissions": exercise.allow_multiple_submissions
+            }
+    
     return ContentResponse(**content_dict)
+
+
+@router.put("/content/reorder")
+async def reorder_content(
+    request: ContentReorderRequest,
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Reorder content items within a module.
+    
+    Admin only. Updates order_index for multiple content items.
+    Expects a request body with 'items' array containing objects with 'id' and 'order_index' fields.
+    All content items must belong to the same module.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        if not request.items:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Content order list cannot be empty"
+            )
+        
+        logger.info(f"Reordering {len(request.items)} content items")
+        
+        # Extract content IDs
+        content_ids = [item.id for item in request.items]
+        
+        # Fetch all content items
+        content_items = db.query(Content).filter(Content.id.in_(content_ids)).all()
+        
+        if len(content_items) != len(content_ids):
+            logger.warning(f"Found {len(content_items)} items but expected {len(content_ids)}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="One or more content items not found"
+            )
+        
+        # Verify all content items belong to the same module
+        module_ids = set(item.module_id for item in content_items)
+        if len(module_ids) > 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="All content items must belong to the same module"
+            )
+        
+        # Create a mapping of content_id to content object
+        content_map = {item.id: item for item in content_items}
+        
+        # Step 1: Set all items to temporary negative order_index to avoid constraint violations
+        for i, order_item in enumerate(request.items):
+            content_id = order_item.id
+            if content_id in content_map:
+                content_map[content_id].order_index = -(i + 1)
+        
+        # Flush to database to apply temporary values
+        db.flush()
+        
+        # Step 2: Update to final order_index values
+        for order_item in request.items:
+            content_id = order_item.id
+            new_order_index = order_item.order_index
+            
+            if content_id in content_map:
+                content_map[content_id].order_index = new_order_index
+                logger.info(f"Updated {content_id} to order_index {new_order_index}")
+        
+        # Commit all changes
+        db.commit()
+        logger.info("Content reordered successfully")
+        
+        return {"message": "Content reordered successfully"}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error reordering content: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to reorder content: {str(e)}"
+        )
 
 
 @router.put("/content/{content_id}", response_model=ContentResponse)
@@ -424,6 +594,9 @@ async def update_content(
                 detail=f"Content with order_index {content_data.order_index} already exists in this module"
             )
     
+    # Track if is_published changed
+    is_published_changed = content_data.is_published is not None and content_data.is_published != content.is_published
+    
     # Update fields
     if content_data.title is not None:
         content.title = content_data.title
@@ -442,6 +615,11 @@ async def update_content(
     
     db.commit()
     db.refresh(content)
+    
+    # Recalculate progress for all enrollments if is_published changed
+    if is_published_changed:
+        from app.services.progress_service import progress_service
+        progress_service.recalculate_all_enrollments(db)
     
     # Build response
     content_dict = {
@@ -1000,9 +1178,17 @@ async def delete_content(
             detail="Content not found"
         )
     
+    # Track if content was published before deletion
+    was_published = content.is_published
+    
     # Delete the content
     db.delete(content)
     db.commit()
+    
+    # Recalculate progress for all enrollments if deleted content was published
+    if was_published:
+        from app.services.progress_service import progress_service
+        progress_service.recalculate_all_enrollments(db)
     
     return {"message": "Content deleted successfully"}
 

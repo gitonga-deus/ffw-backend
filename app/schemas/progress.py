@@ -34,6 +34,22 @@ class ModuleProgressResponse(BaseModel):
     progress_percentage: float
 
 
+class ContentBreakdown(BaseModel):
+    """Breakdown of content by type."""
+    videos: int = 0
+    pdfs: int = 0
+    rich_text: int = 0
+    exercises: int = 0
+
+
+class CompletedContentBreakdown(BaseModel):
+    """Breakdown of completed content by type."""
+    videos: int = 0
+    pdfs: int = 0
+    rich_text: int = 0
+    exercises: int = 0
+
+
 class OverallProgressResponse(BaseModel):
     """Response schema for overall course progress."""
     progress_percentage: float
@@ -41,6 +57,8 @@ class OverallProgressResponse(BaseModel):
     completed_modules: int
     total_content: int
     completed_content: int
+    content_breakdown: Optional[ContentBreakdown] = None
+    completed_breakdown: Optional[CompletedContentBreakdown] = None
     last_accessed_content_id: Optional[str]
     last_accessed_at: Optional[datetime]
     last_accessed_content: Optional[dict] = None

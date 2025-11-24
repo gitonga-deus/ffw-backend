@@ -11,6 +11,7 @@ class ContentType(str, enum.Enum):
     VIDEO = "video"
     PDF = "pdf"
     RICH_TEXT = "rich_text"
+    EXERCISE = "exercise"
 
 
 class Content(Base):

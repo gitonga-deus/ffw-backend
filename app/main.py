@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from app.config import settings
-from app.routers import auth, enrollment, course, admin, progress, certificates, reviews, analytics, announcements, payments, payment_admin
+from app.routers import auth, enrollment, course, admin, progress, certificates, reviews, analytics, announcements, payments, payment_admin, webhooks, exercises, webhook_diagnostics
 from app.middleware.security import SecurityHeadersMiddleware, CSRFProtectionMiddleware, RequestValidationMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
 
@@ -73,6 +73,9 @@ app.include_router(analytics.router)
 app.include_router(announcements.router)
 app.include_router(payments.router)
 app.include_router(payment_admin.router)
+app.include_router(webhooks.router)
+app.include_router(webhook_diagnostics.router)
+app.include_router(exercises.router)
 
 
 @app.get("/")

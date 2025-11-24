@@ -20,6 +20,13 @@ class Settings(BaseSettings):
     ipay_vendor_id: str = "demo"
     ipay_secret_key: str = "demoCHANGED"
     
+    # 123FormBuilder Integration
+    formbuilder_api_key: str = ""
+    formbuilder_webhook_secret: str = ""
+    # Webhook URL format: {backend_url}/api/webhooks/123formbuilder
+    # Example: https://your-domain.com/api/webhooks/123formbuilder
+    # Configure this URL in your 123FormBuilder form settings
+    
     # Application
     frontend_url: str = "http://localhost:3000"
     backend_url: str = "http://localhost:8000"

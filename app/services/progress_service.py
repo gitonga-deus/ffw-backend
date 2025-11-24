@@ -5,7 +5,6 @@ from datetime import datetime
 import json
 
 from app.models.user_progress import UserProgress
-from app.models.exercise_response import ExerciseResponse
 from app.models.enrollment import Enrollment
 from app.models.content import Content
 from app.models.module import Module
@@ -13,8 +12,7 @@ from app.schemas.progress import (
     ProgressUpdateRequest,
     ContentProgressResponse,
     ModuleProgressResponse,
-    OverallProgressResponse,
-    ExerciseResponseRequest
+    OverallProgressResponse
 )
 
 
@@ -75,7 +73,11 @@ class ProgressService:
     ) -> None:
         """
         Calculate and update overall progress percentage in enrollment.
+        Includes exercises in the calculation.
         """
+        from app.models.exercise import Exercise
+        from app.models.exercise_submission import ExerciseSubmission
+        
         # Get enrollment
         enrollment = db.query(Enrollment).filter(
             Enrollment.user_id == user_id
@@ -84,7 +86,7 @@ class ProgressService:
         if not enrollment:
             return
 
-        # Get total published content count
+        # Get total published content count (includes all content types including exercises)
         total_content = db.query(func.count(Content.id)).filter(
             Content.is_published == True
         ).scalar()
@@ -92,11 +94,25 @@ class ProgressService:
         if total_content == 0:
             return
 
-        # Get completed content count for this user
-        completed_content = db.query(func.count(UserProgress.id)).filter(
+        # Get completed non-exercise content count for this user
+        completed_regular_content = db.query(func.count(UserProgress.id)).filter(
             UserProgress.user_id == user_id,
             UserProgress.is_completed == True
         ).scalar()
+        
+        # Get completed exercise count for this user
+        # An exercise is completed if there's a submission for it
+        completed_exercises = db.query(func.count(ExerciseSubmission.id.distinct())).join(
+            Exercise, ExerciseSubmission.exercise_id == Exercise.id
+        ).join(
+            Content, Exercise.content_id == Content.id
+        ).filter(
+            ExerciseSubmission.user_id == user_id,
+            Content.is_published == True
+        ).scalar()
+        
+        # Total completed content includes both regular content and exercises
+        completed_content = completed_regular_content + completed_exercises
 
         # Calculate progress percentage
         progress_percentage = (completed_content / total_content) * 100
@@ -117,16 +133,19 @@ class ProgressService:
     ) -> OverallProgressResponse:
         """
         Get overall course progress for a user.
+        Includes exercises in progress calculation.
         Optimized to avoid N+1 queries.
         """
         from sqlalchemy import case
+        from app.models.exercise import Exercise
+        from app.models.exercise_submission import ExerciseSubmission
         
         # Get enrollment
         enrollment = db.query(Enrollment).filter(
             Enrollment.user_id == user_id
         ).first()
 
-        # Single optimized query with subqueries for counts
+        # Query for regular content progress (non-exercise)
         modules_with_progress = (
             db.query(
                 Module,
@@ -148,6 +167,10 @@ class ProgressService:
             .order_by(Module.order_index)
             .all()
         )
+
+        # Note: Exercise completions are already included in the main query above
+        # UserProgress is the single source of truth for all content types including exercises
+        # No need for separate exercise tracking
 
         module_progress_list = []
         total_content = 0
@@ -180,6 +203,51 @@ class ProgressService:
         # Calculate overall progress
         overall_progress = (completed_content / total_content * 100) if total_content > 0 else 0
 
+        # Get content breakdown by type
+        from app.schemas.progress import ContentBreakdown, CompletedContentBreakdown
+        
+        content_breakdown_query = db.query(
+            Content.content_type,
+            func.count(Content.id).label('count')
+        ).filter(
+            Content.is_published == True
+        ).group_by(Content.content_type).all()
+        
+        content_breakdown = ContentBreakdown()
+        for content_type, count in content_breakdown_query:
+            if content_type == 'video':
+                content_breakdown.videos = count
+            elif content_type == 'pdf':
+                content_breakdown.pdfs = count
+            elif content_type == 'rich_text':
+                content_breakdown.rich_text = count
+            elif content_type == 'exercise':
+                content_breakdown.exercises = count
+        
+        # Get completed content breakdown by type
+        completed_breakdown_query = db.query(
+            Content.content_type,
+            func.count(UserProgress.id).label('count')
+        ).join(
+            UserProgress, UserProgress.content_id == Content.id
+        ).filter(
+            UserProgress.user_id == user_id,
+            UserProgress.is_completed == True,
+            Content.is_published == True
+        ).group_by(Content.content_type).all()
+        
+        completed_breakdown = CompletedContentBreakdown()
+        for content_type, count in completed_breakdown_query:
+            if content_type == 'video':
+                completed_breakdown.videos = count
+            elif content_type == 'pdf':
+                completed_breakdown.pdfs = count
+            elif content_type == 'rich_text':
+                completed_breakdown.rich_text = count
+            elif content_type == 'exercise':
+                # Exercises are tracked in UserProgress (set by webhook)
+                completed_breakdown.exercises = count
+
         # Get last accessed content details
         last_accessed_content = None
         if enrollment and enrollment.last_accessed_module_id:
@@ -209,6 +277,8 @@ class ProgressService:
             completed_modules=completed_modules,
             total_content=total_content,
             completed_content=completed_content,
+            content_breakdown=content_breakdown,
+            completed_breakdown=completed_breakdown,
             last_accessed_content_id=enrollment.last_accessed_module_id if enrollment else None,
             last_accessed_at=enrollment.last_accessed_at if enrollment else None,
             last_accessed_content=last_accessed_content,
@@ -315,44 +385,17 @@ class ProgressService:
 
         return progress_list
 
-    def submit_exercise_response(
-        self,
-        db: Session,
-        user_id: str,
-        exercise_data: ExerciseResponseRequest
-    ) -> ExerciseResponse:
-        """
-        Submit or update exercise response.
-        """
-        # Check if response already exists
-        existing_response = db.query(ExerciseResponse).filter(
-            ExerciseResponse.user_id == user_id,
-            ExerciseResponse.content_id == exercise_data.content_id,
-            ExerciseResponse.exercise_id == exercise_data.exercise_id
-        ).first()
-
-        # Convert response_data dict to JSON string
-        response_json = json.dumps(exercise_data.response_data)
-
-        if existing_response:
-            # Update existing response
-            existing_response.response_data = response_json
-            existing_response.updated_at = datetime.utcnow()
-            db.commit()
-            db.refresh(existing_response)
-            return existing_response
-        else:
-            # Create new response
-            new_response = ExerciseResponse(
-                user_id=user_id,
-                content_id=exercise_data.content_id,
-                exercise_id=exercise_data.exercise_id,
-                response_data=response_json
-            )
-            db.add(new_response)
-            db.commit()
-            db.refresh(new_response)
-            return new_response
+    # Old exercise response method - removed as part of 123FormBuilder integration
+    # def submit_exercise_response(
+    #     self,
+    #     db: Session,
+    #     user_id: str,
+    #     exercise_data: ExerciseResponseRequest
+    # ) -> ExerciseResponse:
+    #     """
+    #     Submit or update exercise response.
+    #     """
+    #     # This method was for the old exercise system that has been replaced
 
     def check_course_completion(
         self,
@@ -360,10 +403,13 @@ class ProgressService:
         user_id: str
     ) -> bool:
         """
-        Check if user has completed all required content.
+        Check if user has completed all required content including exercises.
         Returns True if course is completed.
         """
-        # Get total published content count
+        from app.models.exercise import Exercise
+        from app.models.exercise_submission import ExerciseSubmission
+        
+        # Get total published content count (includes all content types including exercises)
         total_content = db.query(func.count(Content.id)).filter(
             Content.is_published == True
         ).scalar()
@@ -371,10 +417,48 @@ class ProgressService:
         if total_content == 0:
             return False
 
-        # Get completed content count for this user
-        completed_content = db.query(func.count(UserProgress.id)).filter(
+        # Get completed content count for this user (includes all content types including exercises)
+        # UserProgress is the single source of truth for all content completion
+        completed_content = db.query(func.count(UserProgress.id)).join(
+            Content, UserProgress.content_id == Content.id
+        ).filter(
             UserProgress.user_id == user_id,
-            UserProgress.is_completed == True
+            UserProgress.is_completed == True,
+            Content.is_published == True
+        ).scalar()
+
+        return completed_content >= total_content
+
+    def check_module_completion(
+        self,
+        db: Session,
+        user_id: str,
+        module_id: str
+    ) -> bool:
+        """
+        Check if user has completed all content in a module including exercises.
+        Returns True if module is completed.
+        
+        UserProgress is the single source of truth for all content types.
+        """
+        # Get total published content count in this module
+        total_content = db.query(func.count(Content.id)).filter(
+            Content.module_id == module_id,
+            Content.is_published == True
+        ).scalar()
+
+        if total_content == 0:
+            return False
+
+        # Get completed content count for this user in this module (includes all content types)
+        # UserProgress is the single source of truth
+        completed_content = db.query(func.count(UserProgress.id)).join(
+            Content, UserProgress.content_id == Content.id
+        ).filter(
+            UserProgress.user_id == user_id,
+            UserProgress.is_completed == True,
+            Content.module_id == module_id,
+            Content.is_published == True
         ).scalar()
 
         return completed_content >= total_content
@@ -395,6 +479,72 @@ class ProgressService:
             enrollment.completed_at = datetime.utcnow()
             enrollment.progress_percentage = 100.00
             db.commit()
+    
+    def recalculate_all_enrollments(
+        self,
+        db: Session
+    ) -> int:
+        """
+        Recalculate progress for all enrollments.
+        This should be called when content is added, removed, or published/unpublished.
+        
+        Returns:
+            Number of enrollments updated
+        """
+        from app.models.user import User
+        
+        # Get all enrolled users
+        enrolled_users = db.query(User).filter(User.is_enrolled == True).all()
+        
+        updated_count = 0
+        
+        for user in enrolled_users:
+            enrollment = db.query(Enrollment).filter(
+                Enrollment.user_id == user.id
+            ).first()
+            
+            if not enrollment:
+                continue
+            
+            # Get total published content count
+            total_content = db.query(func.count(Content.id)).filter(
+                Content.is_published == True
+            ).scalar()
+            
+            if total_content == 0:
+                continue
+            
+            # Get completed content count for this user
+            completed_content = db.query(func.count(UserProgress.id)).join(
+                Content, UserProgress.content_id == Content.id
+            ).filter(
+                UserProgress.user_id == user.id,
+                UserProgress.is_completed == True,
+                Content.is_published == True
+            ).scalar()
+            
+            # Calculate new progress percentage
+            new_progress = (completed_content / total_content) * 100
+            
+            # Update enrollment
+            old_progress = enrollment.progress_percentage
+            enrollment.progress_percentage = round(new_progress, 2)
+            
+            # Check if course is still completed
+            if new_progress < 100 and enrollment.completed_at:
+                # Course was completed but now has new content - reset completion
+                enrollment.completed_at = None
+                updated_count += 1
+            elif new_progress >= 100 and not enrollment.completed_at:
+                # Course is now completed
+                enrollment.completed_at = datetime.utcnow()
+                updated_count += 1
+            elif old_progress != round(new_progress, 2):
+                # Progress changed but completion status didn't
+                updated_count += 1
+        
+        db.commit()
+        return updated_count
     
     def can_access_content(
         self,

@@ -230,6 +230,23 @@ async def get_module_content(
             "created_at": item.created_at,
             "updated_at": item.updated_at
         }
+        
+        # Add exercise data if content type is exercise
+        if item.content_type == "exercise":
+            from app.services.exercise_service import exercise_service
+            exercise = exercise_service.get_exercise_by_content_id(db, item.id)
+            if exercise:
+                content_dict["exercise"] = {
+                    "id": exercise.id,
+                    "content_id": exercise.content_id,
+                    "form_id": exercise.form_id,
+                    "embed_code": exercise.embed_code,
+                    "form_title": exercise.form_title,
+                    "allow_multiple_submissions": exercise.allow_multiple_submissions,
+                    "created_at": exercise.created_at,
+                    "updated_at": exercise.updated_at
+                }
+        
         result.append(ContentResponse(**content_dict))
     
     return result
@@ -305,5 +322,21 @@ async def get_content(
     elif content.content_type == "rich_text":
         # Return structured JSONB content
         content_dict["rich_text_content"] = json.loads(content.rich_text_content) if content.rich_text_content else None
+    
+    elif content.content_type == "exercise":
+        # Return exercise data
+        from app.services.exercise_service import exercise_service
+        exercise = exercise_service.get_exercise_by_content_id(db, content.id)
+        if exercise:
+            content_dict["exercise"] = {
+                "id": exercise.id,
+                "content_id": exercise.content_id,
+                "form_id": exercise.form_id,
+                "embed_code": exercise.embed_code,
+                "form_title": exercise.form_title,
+                "allow_multiple_submissions": exercise.allow_multiple_submissions,
+                "created_at": exercise.created_at,
+                "updated_at": exercise.updated_at
+            }
     
     return ContentResponse(**content_dict)

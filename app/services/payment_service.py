@@ -241,6 +241,39 @@ class PaymentService:
         except Exception as e:
             logger.error(f"Error checking webhook retry: {e}")
             return False
+    
+    def expire_old_payments(self, db: Session) -> int:
+        """
+        Expire old pending payments that are past their expiration time.
+        
+        Returns:
+            Number of payments expired
+        """
+        try:
+            # Find all pending payments that have expired
+            expired_payments = db.query(Payment).filter(
+                Payment.status == PaymentStatus.PENDING.value,
+                Payment.expires_at < datetime.utcnow()
+            ).all()
+            
+            count = 0
+            for payment in expired_payments:
+                payment.status = PaymentStatus.FAILED.value
+                payment_metadata = json.loads(payment.payment_metadata) if payment.payment_metadata else {}
+                payment_metadata['expired_at'] = datetime.utcnow().isoformat()
+                payment_metadata['reason'] = 'Payment expired (30 minutes timeout)'
+                payment.payment_metadata = json.dumps(payment_metadata)
+                count += 1
+            
+            if count > 0:
+                db.commit()
+                logger.info(f"Expired {count} old pending payments")
+            
+            return count
+        except Exception as e:
+            logger.error(f"Error expiring old payments: {e}", exc_info=True)
+            db.rollback()
+            return 0
 
 
 # Singleton instance

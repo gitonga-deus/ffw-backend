@@ -10,9 +10,7 @@ from app.models.module import Module
 from app.schemas.progress import (
     ProgressUpdateRequest,
     ContentProgressResponse,
-    OverallProgressResponse,
-    ExerciseResponseRequest,
-    ExerciseResponseResponse
+    OverallProgressResponse
 )
 from app.services.progress_service import progress_service
 from app.services.certificate_service import certificate_service
@@ -196,36 +194,38 @@ async def get_content_progress(
     return progress
 
 
-@router.post("/exercise", response_model=ExerciseResponseResponse)
-async def submit_exercise_response(
-    exercise_data: ExerciseResponseRequest,
-    current_user: User = Depends(get_current_enrolled_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Submit or update exercise response.
-    
-    - **content_id**: ID of the content containing the exercise
-    - **exercise_id**: ID of the exercise within the content
-    - **response_data**: User's response data (JSON object)
-    """
-    # Verify content exists and is published
-    content = db.query(Content).filter(
-        Content.id == exercise_data.content_id,
-        Content.is_published == True
-    ).first()
-    
-    if not content:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Content not found"
-        )
-    
-    # Submit exercise response
-    response = progress_service.submit_exercise_response(
-        db=db,
-        user_id=current_user.id,
-        exercise_data=exercise_data
-    )
-    
-    return response
+# Old exercise endpoint - removed as part of 123FormBuilder integration
+# This endpoint was for the old exercise system that has been replaced
+# @router.post("/exercise", response_model=ExerciseResponseResponse)
+# async def submit_exercise_response(
+#     exercise_data: ExerciseResponseRequest,
+#     current_user: User = Depends(get_current_enrolled_user),
+#     db: Session = Depends(get_db)
+# ):
+#     """
+#     Submit or update exercise response.
+#     
+#     - **content_id**: ID of the content containing the exercise
+#     - **exercise_id**: ID of the exercise within the content
+#     - **response_data**: User's response data (JSON object)
+#     """
+#     # Verify content exists and is published
+#     content = db.query(Content).filter(
+#         Content.id == exercise_data.content_id,
+#         Content.is_published == True
+#     ).first()
+#     
+#     if not content:
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail="Content not found"
+#         )
+#     
+#     # Submit exercise response
+#     response = progress_service.submit_exercise_response(
+#         db=db,
+#         user_id=current_user.id,
+#         exercise_data=exercise_data
+#     )
+#     
+#     return response
