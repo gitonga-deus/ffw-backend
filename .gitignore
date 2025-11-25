@@ -13,3 +13,4 @@ ENV/
 .env
 .env.local
 alembic.ini
+.vercel

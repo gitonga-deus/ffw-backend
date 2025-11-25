@@ -64,14 +64,24 @@ class CertificateService:
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
         self.template_path = os.path.join(project_root, "backend", "assets", "certificate_template.pdf")
         self.backend_url = settings.backend_url
-        self._register_fonts()
+        self.template_available = False
+        self.fonts_available = False
+        
+        # Try to register fonts (will fail gracefully on Vercel without assets)
+        try:
+            self._register_fonts()
+            self.fonts_available = True
+        except Exception as e:
+            print(f"INFO: Custom fonts not available: {e}")
+            print("Will use fallback fonts")
         
         # Verify template exists
-        if not os.path.exists(self.template_path):
-            print(f"WARNING: Certificate template not found at: {self.template_path}")
-            print(f"Current working directory: {os.getcwd()}")
-        else:
+        if os.path.exists(self.template_path):
+            self.template_available = True
             print(f"✓ Certificate template found at: {self.template_path}")
+        else:
+            print(f"INFO: Certificate template not found at: {self.template_path}")
+            print(f"Will use simple certificate fallback (works fine for production)")
     
     def _register_fonts(self):
         """Register custom fonts for use in PDF generation."""

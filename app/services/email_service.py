@@ -17,6 +17,7 @@ from app.services.email_templates import (
     get_password_reset_email_template,
     get_welcome_email_template,
     get_course_completion_email_template,
+    get_signature_confirmation_email_template,
     get_notification_email_template
 )
 
@@ -237,6 +238,35 @@ class EmailService:
         return await self.send_email(
             to=to,
             subject="🎉 Course Completed - Your Certificate is Ready!",
+            html=html,
+            text=text
+        )
+    
+    async def send_signature_confirmation_email(
+        self,
+        to: str,
+        full_name: str
+    ) -> Dict[str, Any]:
+        """
+        Send signature confirmation email after student submits signature.
+        
+        Args:
+            to: User's email address
+            full_name: User's full name
+            
+        Returns:
+            Dict containing success status and details
+        """
+        course_url = f"{settings.frontend_url}/students/course"
+        
+        html, text = get_signature_confirmation_email_template(
+            full_name=full_name,
+            course_url=course_url
+        )
+        
+        return await self.send_email(
+            to=to,
+            subject="✅ Signature Confirmed - Ready to Learn!",
             html=html,
             text=text
         )

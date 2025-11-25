@@ -1,4 +1,4 @@
-# LMS Platform Backend
+# Financially Fit World Backend
 
 FastAPI backend for the Learning Management System.
 

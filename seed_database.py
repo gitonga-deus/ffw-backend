@@ -1,5 +1,5 @@
 """
-Database seeding script for LMS platform.
+Database seeding script for Financially Fit World platform.
 
 This script creates initial data including:
 - Admin user

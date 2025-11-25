@@ -12,4 +12,6 @@ httpx>=0.28.0
 reportlab>=4.0.0
 pypdf2>=3.0.0
 bleach>=6.1.0
-# psycopg2-binary>=2.9.9  # Only needed for PostgreSQL (production)
+psycopg2-binary>=2.9.9
+apscheduler>=3.10.4
+mangum>=0.17.0

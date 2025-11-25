@@ -28,7 +28,7 @@ class EmailService:
     def __init__(self):
         self.api_key = settings.resend_api_key
         self.base_url = "https://api.resend.com"
-        self.from_email = "LMS Platform <noreply@yourdomain.com>"
+        self.from_email = "Financially Fit World <noreply@yourdomain.com>"
     
     async def send_email(
         self,
@@ -86,11 +86,11 @@ class EmailService:
         <body>
             <div class="container">
                 <div class="header">
-                    <h1>Welcome to LMS Platform!</h1>
+                    <h1>Welcome to Financially Fit World!</h1>
                 </div>
                 <div class="content">
                     <h2>Hi {full_name},</h2>
-                    <p>Thank you for registering with LMS Platform. To complete your registration, 
+                    <p>Thank you for registering with Financially Fit World. To complete your registration, 
                     please verify your email address by clicking the button below:</p>
                     <div style="text-align: center;">
                         <a href="{verification_url}" class="button">Verify Email Address</a>
@@ -101,7 +101,7 @@ class EmailService:
                     <p>If you didn't create an account, please ignore this email.</p>
                 </div>
                 <div class="footer">
-                    <p>&copy; 2024 LMS Platform. All rights reserved.</p>
+                    <p>&copy; 2024 Financially Fit World. All rights reserved.</p>
                 </div>
             </div>
         </body>
@@ -109,7 +109,7 @@ class EmailService:
         """
         
         text = f"""
-        Welcome to LMS Platform!
+        Welcome to Financially Fit World!
         
         Hi {full_name},
         
@@ -159,7 +159,7 @@ class EmailService:
                     if you have concerns.</p>
                 </div>
                 <div class="footer">
-                    <p>&copy; 2024 LMS Platform. All rights reserved.</p>
+                    <p>&copy; 2024 Financially Fit World. All rights reserved.</p>
                 </div>
             </div>
         </body>
@@ -212,7 +212,7 @@ class EmailService:
                     <p>We're excited to have you on board!</p>
                 </div>
                 <div class="footer">
-                    <p>&copy; 2024 LMS Platform. All rights reserved.</p>
+                    <p>&copy; 2024 Financially Fit World. All rights reserved.</p>
                 </div>
             </div>
         </body>
@@ -275,7 +275,7 @@ class EmailService:
                     </div>
                 </div>
                 <div class="footer">
-                    <p>&copy; 2024 LMS Platform. All rights reserved.</p>
+                    <p>&copy; 2024 Financially Fit World. All rights reserved.</p>
                 </div>
             </div>
         </body>
@@ -339,7 +339,7 @@ class EmailService:
                     </div>
                 </div>
                 <div class="footer">
-                    <p>&copy; 2024 LMS Platform. All rights reserved.</p>
+                    <p>&copy; 2024 Financially Fit World. All rights reserved.</p>
                 </div>
             </div>
         </body>

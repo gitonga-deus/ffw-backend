@@ -144,9 +144,8 @@ class AuthService:
                 detail="Invalid email or password"
             )
         
-        # Check if email is verified (skip in development if configured)
-        from app.config import settings
-        if not user.is_verified and not settings.skip_email_verification:
+        # Check if email is verified
+        if not user.is_verified:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Please verify your email before logging in"

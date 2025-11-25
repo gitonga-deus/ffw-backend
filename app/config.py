@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     
     # External Services
     resend_api_key: str = ""
-    email_from: str = "LMS Platform <onboarding@resend.dev>"  # Change to your verified domain
+    email_from: str = "Financially Fit World <onboarding@resend.dev>"  # Change to your verified domain
     vercel_blob_token: str = ""
     ipay_vendor_id: str = "demo"
     ipay_secret_key: str = "demoCHANGED"
@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:3000"
     backend_url: str = "http://localhost:8000"
     environment: str = "development"  # development, staging, production
-    skip_email_verification: bool = False  # Set to True in development to skip email verification
+    skip_email_verification: bool = False  # Always require email verification
     allowed_test_email: str = ""  # In dev mode, only allow this email for registration (Resend limitation)
     
     # Security Settings
@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     max_request_size: int = 20 * 1024 * 1024  # 20MB
     max_image_size: int = 5 * 1024 * 1024  # 5MB
     max_pdf_size: int = 20 * 1024 * 1024  # 20MB
+    cron_secret: str = ""  # Secret for authenticating cron job requests
     
     # Rate Limiting
     rate_limit_calls: int = 100  # requests per period

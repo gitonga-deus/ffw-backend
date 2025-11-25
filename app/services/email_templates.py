@@ -1,5 +1,5 @@
 """
-Email templates for the LMS platform.
+Email templates for the Financially Fit World platform.
 
 This module contains HTML and plain text templates for all transactional emails.
 Templates are designed to be responsive and accessible.
@@ -8,7 +8,7 @@ Templates are designed to be responsive and accessible.
 from typing import Tuple
 
 
-def get_base_template(title: str, content: str, header_color: str = "#4F46E5") -> str:
+def get_base_template(title: str, content: str, header_color: str = "#049ad1") -> str:
     """
     Get base HTML template with consistent styling.
     
@@ -178,8 +178,8 @@ def get_base_template(title: str, content: str, header_color: str = "#4F46E5") -
                 {content}
             </div>
             <div class="email-footer">
-                <p><strong>LMS Platform</strong></p>
-                <p>&copy; 2024 LMS Platform. All rights reserved.</p>
+                <p><strong>Financially Fit World</strong></p>
+                <p>&copy; 2024 Financially Fit World. All rights reserved.</p>
                 <p style="margin-top: 15px; font-size: 12px;">
                     This is an automated message, please do not reply to this email.
                 </p>
@@ -204,7 +204,7 @@ def get_verification_email_template(full_name: str, verification_url: str) -> Tu
     """
     content = f"""
         <h2>Hi {full_name},</h2>
-        <p>Thank you for registering with LMS Platform! We're excited to have you join our learning community.</p>
+        <p>Thank you for registering with Financially Fit World! We're excited to have you join our learning community.</p>
         <p>To complete your registration and activate your account, please verify your email address by clicking the button below:</p>
         
         <div class="button-container">
@@ -218,17 +218,17 @@ def get_verification_email_template(full_name: str, verification_url: str) -> Tu
             <p style="margin: 0;"><strong>⏰ Important:</strong> This verification link will expire in 24 hours.</p>
         </div>
         
-        <p>If you didn't create an account with LMS Platform, you can safely ignore this email.</p>
+        <p>If you didn't create an account with Financially Fit World, you can safely ignore this email.</p>
     """
     
-    html = get_base_template("Welcome to LMS Platform!", content, "#4F46E5")
+    html = get_base_template("Welcome to Financially Fit World!", content, "#049ad1")
     
     text = f"""
-Welcome to LMS Platform!
+Welcome to Financially Fit World!
 
 Hi {full_name},
 
-Thank you for registering with LMS Platform! We're excited to have you join our learning community.
+Thank you for registering with Financially Fit World! We're excited to have you join our learning community.
 
 To complete your registration and activate your account, please verify your email address by visiting:
 
@@ -236,11 +236,11 @@ To complete your registration and activate your account, please verify your emai
 
 This verification link will expire in 24 hours.
 
-If you didn't create an account with LMS Platform, you can safely ignore this email.
+If you didn't create an account with Financially Fit World, you can safely ignore this email.
 
 ---
-LMS Platform
-© 2024 LMS Platform. All rights reserved.
+Financially Fit World
+© 2024 Financially Fit World. All rights reserved.
 """
     
     return html, text
@@ -259,7 +259,7 @@ def get_password_reset_email_template(full_name: str, reset_url: str) -> Tuple[s
     """
     content = f"""
         <h2>Hi {full_name},</h2>
-        <p>We received a request to reset the password for your LMS Platform account.</p>
+        <p>We received a request to reset the password for your Financially Fit World account.</p>
         <p>Click the button below to create a new password:</p>
         
         <div class="button-container">
@@ -276,18 +276,18 @@ def get_password_reset_email_template(full_name: str, reset_url: str) -> Tuple[s
         <p>If you didn't request a password reset, please ignore this email or contact our support team if you have concerns about your account security.</p>
         
         <p style="margin-top: 30px; font-size: 14px; color: #6b7280;">
-            For security reasons, we never ask for your password via email. If you receive suspicious emails claiming to be from LMS Platform, please report them to our support team.
+            For security reasons, we never ask for your password via email. If you receive suspicious emails claiming to be from Financially Fit World, please report them to our support team.
         </p>
     """
     
-    html = get_base_template("Password Reset Request", content, "#4F46E5")
+    html = get_base_template("Password Reset Request", content, "#049ad1")
     
     text = f"""
 Password Reset Request
 
 Hi {full_name},
 
-We received a request to reset the password for your LMS Platform account.
+We received a request to reset the password for your Financially Fit World account.
 
 To create a new password, visit this link:
 
@@ -300,8 +300,8 @@ If you didn't request a password reset, please ignore this email or contact our 
 For security reasons, we never ask for your password via email.
 
 ---
-LMS Platform
-© 2024 LMS Platform. All rights reserved.
+Financially Fit World
+© 2024 Financially Fit World. All rights reserved.
 """
     
     return html, text
@@ -351,7 +351,7 @@ def get_welcome_email_template(full_name: str, dashboard_url: str) -> Tuple[str,
         <p style="margin-top: 30px;">We're excited to support you on this journey. Let's get started!</p>
     """
     
-    html = get_base_template("Welcome to the Course!", content, "#10B981")
+    html = get_base_template("Welcome to the Course!", content, "#049ad1")
     
     text = f"""
 Welcome to the Course!
@@ -379,8 +379,8 @@ Tips for Success:
 We're excited to support you on this journey. Let's get started!
 
 ---
-LMS Platform
-© 2024 LMS Platform. All rights reserved.
+Financially Fit World
+© 2024 Financially Fit World. All rights reserved.
 """
     
     return html, text
@@ -441,7 +441,7 @@ def get_course_completion_email_template(
         <p style="margin-top: 30px;">Thank you for being part of our learning community. We wish you continued success in your journey!</p>
     """
     
-    html = get_base_template("🎉 Course Completed!", content, "#8B5CF6")
+    html = get_base_template("🎉 Course Completed!", content, "#049ad1")
     
     text = f"""
 🎉 Course Completed!
@@ -473,8 +473,87 @@ View your certificate page:
 Thank you for being part of our learning community. We wish you continued success in your journey!
 
 ---
-LMS Platform
-© 2024 LMS Platform. All rights reserved.
+Financially Fit World
+© 2024 Financially Fit World. All rights reserved.
+"""
+    
+    return html, text
+
+
+def get_signature_confirmation_email_template(
+    full_name: str,
+    course_url: str
+) -> Tuple[str, str]:
+    """
+    Get signature confirmation email template.
+    
+    Args:
+        full_name: User's full name
+        course_url: URL to course page
+        
+    Returns:
+        Tuple of (html_content, text_content)
+    """
+    content = f"""
+        <h2>Great job, {full_name}! ✅</h2>
+        <p>Your digital signature has been successfully submitted and recorded.</p>
+        
+        <div class="info-box">
+            <p style="margin: 0;"><strong>✅ Enrollment Complete!</strong></p>
+            <p style="margin: 10px 0 0 0;">You're all set to begin your learning journey. Your signature confirms your commitment to completing the course.</p>
+        </div>
+        
+        <p><strong>What's Next?</strong></p>
+        <ul style="color: #4b5563; margin: 10px 0; padding-left: 20px;">
+            <li>Access all course modules and content</li>
+            <li>Watch video lectures at your own pace</li>
+            <li>Complete exercises and track your progress</li>
+            <li>Earn your certificate upon completion</li>
+        </ul>
+        
+        <p>Ready to start learning? Click the button below to access your course:</p>
+        
+        <div class="button-container">
+            <a href="{course_url}" class="button">Start Learning</a>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <p style="font-size: 14px; color: #6b7280;">
+            <strong>Pro Tip:</strong> Set aside dedicated time each day for learning. Consistency is key to successfully completing the course and achieving your goals.
+        </p>
+        
+        <p style="margin-top: 30px;">We're excited to support you on this learning journey. Let's get started!</p>
+    """
+    
+    html = get_base_template("Signature Confirmed - Ready to Learn!", content, "#049ad1")
+    
+    text = f"""
+Signature Confirmed - Ready to Learn!
+
+Great job, {full_name}! ✅
+
+Your digital signature has been successfully submitted and recorded.
+
+✅ Enrollment Complete!
+You're all set to begin your learning journey. Your signature confirms your commitment to completing the course.
+
+What's Next?
+- Access all course modules and content
+- Watch video lectures at your own pace
+- Complete exercises and track your progress
+- Earn your certificate upon completion
+
+Ready to start learning? Access your course:
+{course_url}
+
+Pro Tip: Set aside dedicated time each day for learning. Consistency is key to successfully completing the course and achieving your goals.
+
+We're excited to support you on this learning journey. Let's get started!
+
+---
+Financially Fit World
+© 2024 Financially Fit World. All rights reserved.
 """
     
     return html, text
@@ -500,7 +579,7 @@ def get_notification_email_template(
     """
     content = f"""
         <h2>Hi {full_name},</h2>
-        <p>You have a new notification from LMS Platform:</p>
+        <p>You have a new notification from Financially Fit World:</p>
         
         <div class="info-box">
             <p style="margin: 0; white-space: pre-wrap; font-size: 16px; line-height: 1.6;">{message}</p>
@@ -513,14 +592,14 @@ def get_notification_email_template(
         </div>
     """
     
-    html = get_base_template(f"📢 {title}", content, "#4F46E5")
+    html = get_base_template(f"📢 {title}", content, "#049ad1")
     
     text = f"""
 📢 {title}
 
 Hi {full_name},
 
-You have a new notification from LMS Platform:
+You have a new notification from Financially Fit World:
 
 {message}
 
@@ -528,8 +607,8 @@ Visit your dashboard to stay updated:
 {dashboard_url}
 
 ---
-LMS Platform
-© 2024 LMS Platform. All rights reserved.
+Financially Fit World
+© 2024 Financially Fit World. All rights reserved.
 """
     
     return html, text

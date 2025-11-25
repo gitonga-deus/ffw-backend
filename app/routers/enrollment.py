@@ -261,6 +261,7 @@ async def submit_signature(
     Submit digital signature after enrollment.
     
     Accepts canvas signature image data and uploads to Vercel Blob.
+    Sends confirmation email after successful submission.
     """
     # Check if user is enrolled
     if not current_user.is_enrolled:
@@ -281,6 +282,17 @@ async def submit_signature(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to upload signature"
         )
+    
+    # Send signature confirmation email
+    try:
+        await email_service.send_signature_confirmation_email(
+            to=current_user.email,
+            full_name=current_user.full_name
+        )
+        logger.info(f"Signature confirmation email sent to {current_user.email}")
+    except Exception as email_error:
+        logger.error(f"Failed to send signature confirmation email: {email_error}")
+        # Don't fail the request if email fails
     
     return SignatureSubmitResponse(
         success=True,
