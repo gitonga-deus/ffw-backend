@@ -46,9 +46,15 @@ if settings.enable_rate_limiting and settings.environment != "production":
 app.add_middleware(SecurityHeadersMiddleware)
 
 # 5. CORS configuration
+# Build list of allowed origins
+allowed_origins = [settings.frontend_url, "http://localhost:3000"]
+# Add production frontend if different from settings
+if "finfitworld.vercel.app" not in settings.frontend_url:
+    allowed_origins.append("https://finfitworld.vercel.app")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_url, "http://localhost:3000"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
     allow_headers=["*"],
