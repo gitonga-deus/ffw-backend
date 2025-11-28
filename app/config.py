@@ -31,8 +31,6 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:3000"
     backend_url: str = "http://localhost:8000"
     environment: str = "development"  # development, staging, production
-    skip_email_verification: bool = False  # Always require email verification
-    allowed_test_email: str = ""  # In dev mode, only allow this email for registration (Resend limitation)
     
     # Security Settings
     enable_csrf: bool = False  # Enable in production

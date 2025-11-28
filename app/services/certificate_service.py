@@ -66,25 +66,14 @@ class CertificateService:
         self.backend_url = settings.backend_url
         self.template_available = False
         self.fonts_available = False
-        
-        # Try to register fonts (will fail gracefully on Vercel without assets)
-        try:
-            self._register_fonts()
-            self.fonts_available = True
-        except Exception as e:
-            print(f"INFO: Custom fonts not available: {e}")
-            print("Will use fallback fonts")
-        
-        # Verify template exists
-        if os.path.exists(self.template_path):
-            self.template_available = True
-            print(f"✓ Certificate template found at: {self.template_path}")
-        else:
-            print(f"INFO: Certificate template not found at: {self.template_path}")
-            print(f"Will use simple certificate fallback (works fine for production)")
+        self._fonts_initialized = False  # Track if fonts have been loaded
     
     def _register_fonts(self):
-        """Register custom fonts for use in PDF generation."""
+        """Register custom fonts for use in PDF generation. Called lazily on first use."""
+        if self._fonts_initialized:
+            return
+        
+        self._fonts_initialized = True
         import os
         # Get project root (same as template path calculation)
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -93,24 +82,26 @@ class CertificateService:
         try:
             # Try to register Cinzel font
             cinzel_path = os.path.join(fonts_dir, "Cinzel-SemiBold.ttf")
-            pdfmetrics.registerFont(TTFont('Cinzel-SemiBold', cinzel_path))
-            print(f"✓ Cinzel-SemiBold font registered successfully from: {cinzel_path}")
-        except Exception as e:
-            print(f"Warning: Could not register Cinzel-SemiBold font: {e}")
-            print("Falling back to Times-Bold")
-            # Fallback to built-in serif font
+            if os.path.exists(cinzel_path):
+                pdfmetrics.registerFont(TTFont('Cinzel-SemiBold', cinzel_path))
+                self.fonts_available = True
+            else:
+                raise FileNotFoundError(f"Font file not found: {cinzel_path}")
+        except Exception:
+            # Fallback to built-in serif font (no warning needed)
             self.STUDENT_NAME_FONT = "Times-Bold"
+            self.ISSUE_DATE_FONT = "Times-Roman"
             self.CERT_ID_FONT = "Times-Roman"
         
         try:
             # Try to register JetBrainsMono font for URL
             jetbrains_path = os.path.join(fonts_dir, "JetBrainsMono-Regular.ttf")
-            pdfmetrics.registerFont(TTFont('JetBrainsMono-Regular', jetbrains_path))
-            print(f"✓ JetBrainsMono-Regular font registered successfully from: {jetbrains_path}")
-        except Exception as e:
-            print(f"Warning: Could not register JetBrainsMono-Regular font: {e}")
-            print("Falling back to Courier for URL")
-            # Fallback to built-in monospace font
+            if os.path.exists(jetbrains_path):
+                pdfmetrics.registerFont(TTFont('JetBrainsMono-Regular', jetbrains_path))
+            else:
+                raise FileNotFoundError(f"Font file not found: {jetbrains_path}")
+        except Exception:
+            # Fallback to built-in monospace font (no warning needed)
             self.VERIFY_URL_FONT = "Courier"
         
     def generate_certification_id(self) -> str:
@@ -143,6 +134,9 @@ class CertificateService:
         Returns:
             BytesIO object containing the overlay PDF
         """
+        # Lazy load fonts on first use
+        self._register_fonts()
+        
         if page_size is None:
             page_size = (self.PAGE_WIDTH, self.PAGE_HEIGHT)
         
@@ -351,10 +345,17 @@ class CertificateService:
             # Create shortened verification URL
             verify_url = create_short_url(settings.frontend_url, cert_id)
             
+            # Lazy load fonts before generating certificate
+            self._register_fonts()
+            
             # Try to use template if available, otherwise create simple certificate
             try:
                 # Attempt to load template
-                template = PdfReader(self.template_path)
+                import os
+                if os.path.exists(self.template_path):
+                    template = PdfReader(self.template_path)
+                else:
+                    raise FileNotFoundError("Template not found")
                 
                 # Create text overlay
                 overlay_packet = self.create_text_overlay(
