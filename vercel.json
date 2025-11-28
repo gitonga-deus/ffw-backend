@@ -3,12 +3,7 @@
   "builds": [
     {
       "src": "api/index.py",
-      "use": "@vercel/python",
-      "config": {
-        "runtime": "python3.9",
-        "maxLambdaSize": "50mb",
-        "includeFiles": "assets/**"
-      }
+      "use": "@vercel/python"
     }
   ],
   "routes": [
@@ -16,8 +11,5 @@
       "src": "/(.*)",
       "dest": "api/index.py"
     }
-  ],
-  "env": {
-    "ENVIRONMENT": "production"
-  }
+  ]
 }

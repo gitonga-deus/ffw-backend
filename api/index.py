@@ -1,20 +1,21 @@
 """
 Vercel serverless function entry point for FastAPI application.
-This file is required for deploying FastAPI to Vercel.
 """
 import sys
 import os
 
-# Ensure the parent directory is in the path
+# Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Import app first to ensure all modules are loaded
-from app.main import app
-
-# Import Mangum after app is loaded
-from mangum import Mangum
-
-# Mangum handler for AWS Lambda/Vercel
-# lifespan="off" disables startup/shutdown events which aren't supported in serverless
-# api_gateway_base_path="/" ensures proper routing
-handler = Mangum(app, lifespan="off", api_gateway_base_path="/")
+try:
+    from app.main import app
+    from mangum import Mangum
+    
+    # Create handler
+    handler = Mangum(app, lifespan="off")
+    
+except Exception as e:
+    print(f"Error initializing handler: {e}")
+    import traceback
+    traceback.print_exc()
+    raise
