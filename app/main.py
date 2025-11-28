@@ -16,19 +16,12 @@ app = FastAPI(
 )
 
 # Startup and shutdown events for background scheduler
-@app.on_event("startup")
-async def startup_event():
-    """Start background scheduler for periodic tasks."""
-    from app.scheduler import start_scheduler
-    start_scheduler()
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Stop background scheduler."""
-    from app.scheduler import stop_scheduler
-    stop_scheduler()
+# Note: Disabled in serverless environments (Vercel)
+# Use Vercel Cron Jobs instead: https://vercel.com/docs/cron-jobs
+# The /api/cron/* endpoints handle scheduled tasks
 
 # Security Middleware (order matters - apply from innermost to outermost)
+# CORS must be added LAST so it's processed FIRST
 
 # 1. Request validation (check size, content type)
 app.add_middleware(RequestValidationMiddleware, max_request_size=20 * 1024 * 1024)  # 20MB
@@ -45,18 +38,23 @@ if settings.enable_rate_limiting and settings.environment != "production":
 # 4. Security headers (CSP, X-Frame-Options, etc.)
 app.add_middleware(SecurityHeadersMiddleware)
 
-# 5. CORS configuration
+# 5. CORS configuration - MUST BE LAST!
 # Build list of allowed origins
-allowed_origins = [settings.frontend_url, "http://localhost:3000"]
-# Add production frontend if different from settings
-if "finfitworld.vercel.app" not in settings.frontend_url:
-    allowed_origins.append("https://finfitworld.vercel.app")
+allowed_origins = [
+    "https://finfitworld.vercel.app",  # Production frontend
+    "http://localhost:3000",            # Local development
+    "http://localhost:8000",            # Local backend (for testing)
+]
+
+# Add frontend_url from settings if not already in list
+if settings.frontend_url not in allowed_origins:
+    allowed_origins.append(settings.frontend_url)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],
     expose_headers=["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
     max_age=3600,  # Cache preflight requests for 1 hour

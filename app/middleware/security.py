@@ -21,6 +21,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         """Add security headers to response."""
         response = await call_next(request)
         
+        # Skip adding security headers for OPTIONS requests (CORS preflight)
+        if request.method == "OPTIONS":
+            return response
+        
         # Content Security Policy
         # Adjust these directives based on your needs
         csp_directives = [
