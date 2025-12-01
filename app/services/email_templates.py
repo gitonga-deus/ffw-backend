@@ -56,6 +56,11 @@ def get_base_template(title: str, content: str, header_color: str = "#049ad1") -
             padding: 30px 20px;
             text-align: center;
         }}
+        .email-header img {{
+            max-width: 150px;
+            height: auto;
+            margin-bottom: 15px;
+        }}
         .email-header h1 {{
             margin: 0;
             font-size: 28px;
@@ -172,14 +177,15 @@ def get_base_template(title: str, content: str, header_color: str = "#049ad1") -
     <div class="email-wrapper">
         <div class="email-container">
             <div class="email-header">
+                <img src="https://ffw-frontend-ten.vercel.app/logo/logo.png" alt="FiNFIT World Logo" />
                 <h1>{title}</h1>
             </div>
             <div class="email-content">
                 {content}
             </div>
             <div class="email-footer">
-                <p><strong>Financially Fit World</strong></p>
-                <p>&copy; 2024 Financially Fit World. All rights reserved.</p>
+                <p><strong>FiNFIT World</strong></p>
+                <p>&copy; 2024 FiNFIT World. All rights reserved.</p>
                 <p style="margin-top: 15px; font-size: 12px;">
                     This is an automated message, please do not reply to this email.
                 </p>
@@ -204,43 +210,46 @@ def get_verification_email_template(full_name: str, verification_url: str) -> Tu
     """
     content = f"""
         <h2>Hi {full_name},</h2>
-        <p>Thank you for registering with Financially Fit World! We're excited to have you join our learning community.</p>
-        <p>To complete your registration and activate your account, please verify your email address by clicking the button below:</p>
+        <p>You're just one step away from unlocking your personalized fitness and finance experience.</p>
+        <p>To complete your registration and activate your account, please verify your email by clicking the link below:</p>
         
         <div class="button-container">
-            <a href="{verification_url}" class="button">Verify Email Address</a>
+            <a href="{verification_url}" class="button">Verify My Account</a>
         </div>
         
         <p>Or copy and paste this link into your browser:</p>
         <div class="link-text">{verification_url}</div>
         
-        <div class="info-box">
-            <p style="margin: 0;"><strong>⏰ Important:</strong> This verification link will expire in 24 hours.</p>
-        </div>
+        <p>If you did not create an account with FiNFIT World, please ignore this message.</p>
         
-        <p>If you didn't create an account with Financially Fit World, you can safely ignore this email.</p>
+        <p style="margin-top: 30px;">Thank you for joining our community — we are excited to support your journey towards a stronger future!</p>
+        
+        <p><strong>Stay fit, stay smart,</strong><br>The FiNFIT World Team</p>
     """
     
-    html = get_base_template("Welcome to Financially Fit World!", content, "#049ad1")
+    html = get_base_template("Verify Your Email", content, "#049ad1")
     
     text = f"""
-Welcome to Financially Fit World!
+Verify Your Email
 
 Hi {full_name},
 
-Thank you for registering with Financially Fit World! We're excited to have you join our learning community.
+You're just one step away from unlocking your personalized fitness and finance experience.
 
-To complete your registration and activate your account, please verify your email address by visiting:
+To complete your registration and activate your account, please verify your email by clicking the link below:
 
 {verification_url}
 
-This verification link will expire in 24 hours.
+If you did not create an account with FiNFIT World, please ignore this message.
 
-If you didn't create an account with Financially Fit World, you can safely ignore this email.
+Thank you for joining our community — we are excited to support your journey towards a stronger future!
+
+Stay fit, stay smart,
+The FiNFIT World Team
 
 ---
-Financially Fit World
-© 2024 Financially Fit World. All rights reserved.
+FiNFIT World
+© 2024 FiNFIT World. All rights reserved.
 """
     
     return html, text
@@ -259,7 +268,7 @@ def get_password_reset_email_template(full_name: str, reset_url: str) -> Tuple[s
     """
     content = f"""
         <h2>Hi {full_name},</h2>
-        <p>We received a request to reset the password for your Financially Fit World account.</p>
+        <p>We received a request to reset the password for your FiNFIT World account.</p>
         <p>Click the button below to create a new password:</p>
         
         <div class="button-container">
@@ -269,15 +278,11 @@ def get_password_reset_email_template(full_name: str, reset_url: str) -> Tuple[s
         <p>Or copy and paste this link into your browser:</p>
         <div class="link-text">{reset_url}</div>
         
-        <div class="info-box">
-            <p style="margin: 0;"><strong>⏰ Important:</strong> This password reset link will expire in 1 hour.</p>
-        </div>
+        <p>If you did not make this request with your FiNFIT World account, please ignore this message.</p>
         
-        <p>If you didn't request a password reset, please ignore this email or contact our support team if you have concerns about your account security.</p>
+        <p style="margin-top: 30px;">Thank you for joining our community — we are excited to support your journey towards a stronger future!</p>
         
-        <p style="margin-top: 30px; font-size: 14px; color: #6b7280;">
-            For security reasons, we never ask for your password via email. If you receive suspicious emails claiming to be from Financially Fit World, please report them to our support team.
-        </p>
+        <p><strong>Stay fit, stay smart,</strong><br>The FiNFIT World Team</p>
     """
     
     html = get_base_template("Password Reset Request", content, "#049ad1")
@@ -287,21 +292,22 @@ Password Reset Request
 
 Hi {full_name},
 
-We received a request to reset the password for your Financially Fit World account.
+We received a request to reset the password for your FiNFIT World account.
 
-To create a new password, visit this link:
+Click the button below to create a new password:
 
 {reset_url}
 
-This password reset link will expire in 1 hour.
+If you did not make this request with your FiNFIT World account, please ignore this message.
 
-If you didn't request a password reset, please ignore this email or contact our support team if you have concerns about your account security.
+Thank you for joining our community — we are excited to support your journey towards a stronger future!
 
-For security reasons, we never ask for your password via email.
+Stay fit, stay smart,
+The FiNFIT World Team
 
 ---
-Financially Fit World
-© 2024 Financially Fit World. All rights reserved.
+FiNFIT World
+© 2024 FiNFIT World. All rights reserved.
 """
     
     return html, text
@@ -319,68 +325,52 @@ def get_welcome_email_template(full_name: str, dashboard_url: str) -> Tuple[str,
         Tuple of (html_content, text_content)
     """
     content = f"""
-        <h2>Congratulations, {full_name}! 🎉</h2>
-        <p>Your enrollment has been successfully confirmed! Welcome to our learning community.</p>
+        <h2>Welcome to FiNFIT World</h2>
+        <p>We are excited to have you join a community built to help you grow, thrive, and achieve more in your financial journey.</p>
         
-        <div class="info-box">
-            <p style="margin: 0;"><strong>✅ You now have full access to:</strong></p>
-            <ul style="margin: 10px 0 0 0; padding-left: 20px;">
-                <li>All course modules and content</li>
-                <li>Video lectures and downloadable resources</li>
-                <li>Interactive exercises and assessments</li>
-                <li>Progress tracking and certificates</li>
-            </ul>
-        </div>
+        <p>Your account is now active, and you are all set to explore everything FiNFIT World has to offer — learning resources and tailored features designed to elevate your financial independence.</p>
         
-        <p>Ready to start your learning journey? Access your dashboard to begin:</p>
+        <p><strong>Here's what you can do next:</strong></p>
+        <ul style="color: #4b5563; margin: 10px 0; padding-left: 20px;">
+            <li>✔ Log in to your dashboard</li>
+            <li>✔ Set up your profile</li>
+            <li>✔ Explore tools and resources made just for you</li>
+        </ul>
         
         <div class="button-container">
             <a href="{dashboard_url}" class="button">Go to Dashboard</a>
         </div>
         
-        <div class="divider"></div>
+        <p style="margin-top: 30px;">Thank you for being part of FiNFIT World — we are excited to have you on board!</p>
         
-        <p><strong>Tips for Success:</strong></p>
-        <ul style="color: #4b5563; margin: 10px 0; padding-left: 20px;">
-            <li>Set aside dedicated time for learning each day</li>
-            <li>Complete modules in order for the best experience</li>
-            <li>Don't hesitate to revisit content as needed</li>
-            <li>Track your progress and celebrate milestones</li>
-        </ul>
-        
-        <p style="margin-top: 30px;">We're excited to support you on this journey. Let's get started!</p>
+        <p><strong>Best regards,</strong><br>The FiNFIT World Team</p>
     """
     
-    html = get_base_template("Welcome to the Course!", content, "#049ad1")
+    html = get_base_template("Welcome to FiNFIT World", content, "#049ad1")
     
     text = f"""
-Welcome to the Course!
+Welcome to FiNFIT World
 
-Congratulations, {full_name}! 🎉
+We are excited to have you join a community built to help you grow, thrive, and achieve more in your financial journey.
 
-Your enrollment has been successfully confirmed! Welcome to our learning community.
+Your account is now active, and you are all set to explore everything FiNFIT World has to offer — learning resources and tailored features designed to elevate your financial independence.
 
-You now have full access to:
-- All course modules and content
-- Video lectures and downloadable resources
-- Interactive exercises and assessments
-- Progress tracking and certificates
+Here's what you can do next:
+• ✔ Log in to your dashboard
+• ✔ Set up your profile
+• ✔ Explore tools and resources made just for you
 
-Ready to start your learning journey? Access your dashboard:
-
+Access your dashboard:
 {dashboard_url}
 
-Tips for Success:
-- Set aside dedicated time for learning each day
-- Complete modules in order for the best experience
-- Don't hesitate to revisit content as needed
-- Track your progress and celebrate milestones
+Thank you for being part of FiNFIT World — we are excited to have you on board!
 
-We're excited to support you on this journey. Let's get started!
+Best regards,
+The FiNFIT World Team
 
 ---
-Financially Fit World
-© 2024 Financially Fit World. All rights reserved.
+FiNFIT World
+© 2024 FiNFIT World. All rights reserved.
 """
     
     return html, text
