@@ -42,6 +42,7 @@ app.add_middleware(SecurityHeadersMiddleware)
 # Build list of allowed origins
 allowed_origins = [
     "https://finfitworld.vercel.app",  # Production frontend
+    "https://ffw-frontend-ten.vercel.app",  # Production frontend (alternate)
     "http://localhost:3000",            # Local development
     "http://localhost:8000",            # Local backend (for testing)
 ]
