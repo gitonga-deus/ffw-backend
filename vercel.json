@@ -10,5 +10,15 @@
       "src": "/(.*)",
       "dest": "api/index.py"
     }
+  ],
+  "crons": [
+    {
+      "path": "/health",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/cron/refresh-analytics",
+      "schedule": "0 * * * *"
+    }
   ]
 }

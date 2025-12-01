@@ -19,10 +19,10 @@ from app.schemas.analytics import (
 
 router = APIRouter(prefix="/admin/analytics", tags=["analytics"])
 
-# Simple in-memory cache (5 minute TTL)
+# Simple in-memory cache (1 hour TTL - refreshed by cron)
 _dashboard_cache: Optional[dict] = None
 _cache_timestamp: Optional[datetime] = None
-CACHE_TTL = timedelta(minutes=5)
+CACHE_TTL = timedelta(hours=1)
 
 
 @router.get("/dashboard", response_model=DashboardAnalyticsResponse)
