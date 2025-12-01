@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
+from datetime import datetime, timedelta
+from typing import Optional
 
 from app.dependencies import get_db, get_current_admin_user
 from app.models.user import User
@@ -17,11 +19,17 @@ from app.schemas.analytics import (
 
 router = APIRouter(prefix="/admin/analytics", tags=["analytics"])
 
+# Simple in-memory cache (5 minute TTL)
+_dashboard_cache: Optional[dict] = None
+_cache_timestamp: Optional[datetime] = None
+CACHE_TTL = timedelta(minutes=5)
+
 
 @router.get("/dashboard", response_model=DashboardAnalyticsResponse)
 async def get_dashboard_analytics(
     current_user: User = Depends(get_current_admin_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    force_refresh: bool = False
 ):
     """
     Get complete dashboard analytics.
@@ -35,10 +43,28 @@ async def get_dashboard_analytics(
     - Review analytics with rating distribution
     - Recent activity (enrollments and completions)
     
+    Cached for 5 minutes to improve performance. Use force_refresh=true to bypass cache.
+    
     Returns:
         Complete dashboard analytics data
     """
+    global _dashboard_cache, _cache_timestamp
+    
+    # Check if cache is valid
+    now = datetime.utcnow()
+    if (not force_refresh and 
+        _dashboard_cache is not None and 
+        _cache_timestamp is not None and 
+        now - _cache_timestamp < CACHE_TTL):
+        return DashboardAnalyticsResponse(**_dashboard_cache)
+    
+    # Fetch fresh data
     data = analytics_service.get_dashboard_analytics(db)
+    
+    # Update cache
+    _dashboard_cache = data
+    _cache_timestamp = now
+    
     return DashboardAnalyticsResponse(**data)
 
 
