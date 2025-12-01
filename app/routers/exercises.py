@@ -21,7 +21,7 @@ from app.services.exercise_service import exercise_service
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
-    prefix="/api",
+    prefix="",
     tags=["exercises"]
 )
 

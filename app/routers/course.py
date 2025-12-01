@@ -17,7 +17,7 @@ from app.schemas.course import (
 from app.services.storage_service import storage_service
 from app.services.progress_service import progress_service
 
-router = APIRouter(prefix="/api", tags=["course"])
+router = APIRouter(prefix="", tags=["course"])
 
 
 @router.get("/course", response_model=CourseResponse)

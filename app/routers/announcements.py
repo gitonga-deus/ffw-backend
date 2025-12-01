@@ -12,7 +12,7 @@ from app.schemas.announcement import (
     AnnouncementListResponse
 )
 
-router = APIRouter(prefix="/api", tags=["announcements"])
+router = APIRouter(prefix="", tags=["announcements"])
 
 
 @router.post(
