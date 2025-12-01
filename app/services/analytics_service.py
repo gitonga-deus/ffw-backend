@@ -17,71 +17,67 @@ class AnalyticsService:
     """Service for calculating dashboard analytics."""
     
     def get_overview_metrics(self, db: Session) -> Dict:
-        """Get overview metrics for dashboard cards."""
+        """Get overview metrics for dashboard cards - optimized with fewer queries."""
         now = datetime.utcnow()
         month_start = datetime(now.year, now.month, 1)
         
-        # User metrics
-        total_users = db.query(User).count()
-        verified_users = db.query(User).filter(User.is_verified == True).count()
+        # User metrics - single query with aggregation
+        user_stats = db.query(
+            func.count(User.id).label('total'),
+            func.sum(case((User.is_verified == True, 1), else_=0)).label('verified')
+        ).first()
         
-        # Enrollment metrics
-        active_enrollments = db.query(Enrollment).filter(
-            Enrollment.completed_at.is_(None)
-        ).count()
-        completed_enrollments = db.query(Enrollment).filter(
-            Enrollment.completed_at.isnot(None)
-        ).count()
+        # Enrollment metrics - single query with aggregation
+        enrollment_stats = db.query(
+            func.count(Enrollment.id).label('total'),
+            func.sum(case((Enrollment.completed_at.is_(None), 1), else_=0)).label('active'),
+            func.sum(case((Enrollment.completed_at.isnot(None), 1), else_=0)).label('completed')
+        ).first()
         
-        # Revenue metrics
-        total_revenue = db.query(
-            func.coalesce(func.sum(Payment.amount), 0)
-        ).filter(
-            Payment.status == PaymentStatus.COMPLETED.value
-        ).scalar() or Decimal('0')
+        # Revenue metrics - single query with conditional sum
+        revenue_stats = db.query(
+            func.coalesce(
+                func.sum(case(
+                    (Payment.status == PaymentStatus.COMPLETED.value, Payment.amount),
+                    else_=0
+                )), 0
+            ).label('total'),
+            func.coalesce(
+                func.sum(case(
+                    (and_(
+                        Payment.status == PaymentStatus.COMPLETED.value,
+                        Payment.created_at >= month_start
+                    ), Payment.amount),
+                    else_=0
+                )), 0
+            ).label('this_month')
+        ).first()
         
-        revenue_this_month = db.query(
-            func.coalesce(func.sum(Payment.amount), 0)
-        ).filter(
-            and_(
-                Payment.status == PaymentStatus.COMPLETED.value,
-                Payment.created_at >= month_start
-            )
-        ).scalar() or Decimal('0')
+        # Review metrics - single query with aggregation
+        review_stats = db.query(
+            func.count(Review.id).label('total'),
+            func.sum(case((Review.status == ReviewStatus.PENDING.value, 1), else_=0)).label('pending'),
+            func.avg(case((Review.status == ReviewStatus.APPROVED.value, Review.rating), else_=None)).label('avg_rating')
+        ).first()
         
-        # Review metrics
-        approved_reviews = db.query(Review).filter(
-            Review.status == ReviewStatus.APPROVED.value
-        ).all()
-        
-        average_rating = 0.0
-        if approved_reviews:
-            total_rating = sum(review.rating for review in approved_reviews)
-            average_rating = round(total_rating / len(approved_reviews), 2)
-        
-        total_reviews = db.query(Review).count()
-        pending_reviews = db.query(Review).filter(
-            Review.status == ReviewStatus.PENDING.value
-        ).count()
-        
-        # Certificate metrics
-        certificates_issued = db.query(Certificate).count()
-        certificates_this_month = db.query(Certificate).filter(
-            Certificate.issued_at >= month_start
-        ).count()
+        # Certificate metrics - single query with aggregation
+        cert_stats = db.query(
+            func.count(Certificate.id).label('total'),
+            func.sum(case((Certificate.issued_at >= month_start, 1), else_=0)).label('this_month')
+        ).first()
         
         return {
-            "total_users": total_users,
-            "verified_users": verified_users,
-            "active_enrollments": active_enrollments,
-            "completed_enrollments": completed_enrollments,
-            "total_revenue": total_revenue,
-            "revenue_this_month": revenue_this_month,
-            "average_rating": average_rating,
-            "total_reviews": total_reviews,
-            "pending_reviews": pending_reviews,
-            "certificates_issued": certificates_issued,
-            "certificates_this_month": certificates_this_month
+            "total_users": user_stats.total or 0,
+            "verified_users": user_stats.verified or 0,
+            "active_enrollments": enrollment_stats.active or 0,
+            "completed_enrollments": enrollment_stats.completed or 0,
+            "total_revenue": Decimal(str(revenue_stats.total or 0)),
+            "revenue_this_month": Decimal(str(revenue_stats.this_month or 0)),
+            "average_rating": round(float(review_stats.avg_rating or 0), 2),
+            "total_reviews": review_stats.total or 0,
+            "pending_reviews": review_stats.pending or 0,
+            "certificates_issued": cert_stats.total or 0,
+            "certificates_this_month": cert_stats.this_month or 0
         }
     
     def get_user_analytics(self, db: Session) -> Dict:
