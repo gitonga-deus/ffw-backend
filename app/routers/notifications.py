@@ -11,7 +11,7 @@ from app.schemas.notification import (
     NotificationListResponse
 )
 
-router = APIRouter(prefix="/api/admin/notifications", tags=["notifications"])
+router = APIRouter(prefix="/admin/notifications", tags=["notifications"])
 
 
 @router.post(

@@ -21,7 +21,7 @@ from app.services.payment_service import payment_service
 from app.services.enrollment_service import enrollment_service
 from app.services.email_service import email_service
 
-router = APIRouter(prefix="/api/enrollment", tags=["enrollment"])
+router = APIRouter(prefix="/enrollment", tags=["enrollment"])
 
 
 @router.post("/initiate", response_model=PaymentInitiateResponse)

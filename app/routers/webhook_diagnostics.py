@@ -20,7 +20,7 @@ from app.models.user_progress import UserProgress
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
-    prefix="/api/webhooks/diagnostics",
+    prefix="/webhooks/diagnostics",
     tags=["webhook-diagnostics"]
 )
 

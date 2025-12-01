@@ -15,7 +15,7 @@ from app.schemas.analytics import (
     RecentActivity
 )
 
-router = APIRouter(prefix="/api/admin/analytics", tags=["analytics"])
+router = APIRouter(prefix="/admin/analytics", tags=["analytics"])
 
 
 @router.get("/dashboard", response_model=DashboardAnalyticsResponse)

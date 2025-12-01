@@ -39,7 +39,7 @@ from app.schemas.user import (
 from app.services.storage_service import storage_service
 from app.utils.security import get_password_hash
 
-router = APIRouter(prefix="/api/admin", tags=["admin"])
+router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 @router.get("/modules", response_model=list[ModuleResponse])

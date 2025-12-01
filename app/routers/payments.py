@@ -8,7 +8,7 @@ from app.models.user import User
 from app.models.payment import Payment
 from app.schemas.user import PaymentHistoryItem
 
-router = APIRouter(prefix="/api/payments", tags=["payments"])
+router = APIRouter(prefix="/payments", tags=["payments"])
 
 
 @router.get("/my-history", response_model=List[PaymentHistoryItem])

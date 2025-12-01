@@ -25,7 +25,7 @@ from app.models.content import Content
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
-    prefix="/api/webhooks",
+    prefix="/webhooks",
     tags=["webhooks"]
 )
 

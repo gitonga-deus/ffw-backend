@@ -7,7 +7,7 @@ from app.models.user import User
 from app.schemas.certificate import CertificateResponse, CertificateVerification
 from app.services.certificate_service import certificate_service
 
-router = APIRouter(prefix="/api/certificates", tags=["certificates"])
+router = APIRouter(prefix="/certificates", tags=["certificates"])
 
 
 @router.get("/mine", response_model=CertificateResponse)

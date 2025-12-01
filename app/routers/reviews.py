@@ -16,7 +16,7 @@ from app.schemas.review import (
     ReviewStats
 )
 
-router = APIRouter(prefix="/api/reviews", tags=["reviews"])
+router = APIRouter(prefix="/reviews", tags=["reviews"])
 
 
 @router.post("", response_model=ReviewResponse, status_code=status.HTTP_201_CREATED)

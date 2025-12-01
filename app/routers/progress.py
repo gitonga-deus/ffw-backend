@@ -17,7 +17,7 @@ from app.services.certificate_service import certificate_service
 from app.services.email_service import email_service
 
 router = APIRouter(
-    prefix="/api/progress",
+    prefix="/progress",
     tags=["progress"]
 )
 

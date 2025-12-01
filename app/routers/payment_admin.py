@@ -6,7 +6,7 @@ from app.dependencies import get_current_admin_user
 from app.models.user import User
 from app.services.payment_service import payment_service
 
-router = APIRouter(prefix="/api/admin/payments", tags=["admin-payments"])
+router = APIRouter(prefix="/admin/payments", tags=["admin-payments"])
 
 
 @router.post("/expire-old")

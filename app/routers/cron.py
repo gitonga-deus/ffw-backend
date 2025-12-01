@@ -8,7 +8,7 @@ from app.tasks.payment_tasks import expire_old_payments, retry_failed_webhooks
 import logging
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/api/cron", tags=["cron"])
+router = APIRouter(prefix="/cron", tags=["cron"])
 
 
 async def verify_cron_secret(request: Request, authorization: str = Header(None)):
