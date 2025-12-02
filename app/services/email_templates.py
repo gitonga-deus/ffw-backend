@@ -54,11 +54,11 @@ def get_base_template(title: str, content: str, header_color: str = "#049ad1") -
             background-color: #ffffff;
             padding: 40px 20px;
             text-align: center;
-            border-bottom: 2px solid #e5e7eb;
+            border-bottom: 1px solid #e5e7eb;
         }}
         .email-header img {{
-            max-width: 200px;
-            height: auto;
+            max-width: 240px;
+            height: 96px;
             margin: 0 auto;
             display: block;
         }}
@@ -79,12 +79,12 @@ def get_base_template(title: str, content: str, header_color: str = "#049ad1") -
         }}
         .button {{
             display: inline-block;
-            padding: 14px 32px;
+            padding: 14px 40px;
             background-color: {header_color};
             color: #ffffff !important;
             text-decoration: none;
-            border-radius: 6px;
-            font-weight: 600;
+            border-radius: 2px;
+            font-weight: 400;
             font-size: 16px;
             margin: 20px 0;
             transition: background-color 0.2s;
@@ -326,10 +326,10 @@ def get_welcome_email_template(full_name: str, dashboard_url: str) -> Tuple[str,
         <p>Your account is now active, and you are all set to explore everything FiNFIT World has to offer — learning resources and tailored features designed to elevate your financial independence.</p>
         
         <p><strong>Here's what you can do next:</strong></p>
-        <ul style="color: #4b5563; margin: 10px 0; padding-left: 20px;">
-            <li>✔ Log in to your dashboard</li>
-            <li>✔ Set up your profile</li>
-            <li>✔ Explore tools and resources made just for you</li>
+        <ul style="color: #4b5563; margin: 10px 0; padding-left: 10px;">
+            <li>Log in to your dashboard</li>
+            <li>Set up your profile</li>
+            <li>Explore tools and resources made just for you</li>
         </ul>
         
         <div class="button-container">
@@ -392,7 +392,7 @@ def get_course_completion_email_template(
         Tuple of (html_content, text_content)
     """
     content = f"""
-        <h2>🎉 Congratulations, {full_name}!</h2>
+        <h2>Congratulations, {full_name}!</h2>
         <p>You've done it! You have successfully completed the course, and we couldn't be more proud of your dedication and hard work throughout this learning journey.</p>
         
         <div class="certificate-box">
@@ -426,10 +426,9 @@ def get_course_completion_email_template(
         <p style="margin-top: 30px;">Thank you for being part of our learning community. We wish you continued success in your journey!</p>
     """
     
-    html = get_base_template("🎉 Course Completed!", content, "#049ad1")
+    html = get_base_template("Course Completed!", content, "#049ad1")
     
-    text = f"""
-🎉 Course Completed!
+    text = f""" Course Completed!
 
 Congratulations, {full_name}!
 
