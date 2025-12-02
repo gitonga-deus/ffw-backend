@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     # External Services
     resend_api_key: str = ""
     email_from: str = "Financially Fit World <onboarding@resend.dev>"  # Change to your verified domain
+    allowed_test_email: str = ""  # Optional: Restrict registration to specific email for testing
     vercel_blob_token: str = ""
     ipay_vendor_id: str = "demo"
     ipay_secret_key: str = "demoCHANGED"

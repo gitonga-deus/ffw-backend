@@ -56,6 +56,12 @@ def get_base_template(title: str, content: str, header_color: str = "#049ad1") -
             padding: 30px 20px;
             text-align: center;
         }}
+        .email-header img {{
+            max-width: 150px;
+            height: auto;
+            margin: 0 auto 15px;
+            display: block;
+        }}
         .email-header h1 {{
             margin: 0 0 5px 0;
             font-size: 28px;
@@ -178,6 +184,7 @@ def get_base_template(title: str, content: str, header_color: str = "#049ad1") -
     <div class="email-wrapper">
         <div class="email-container">
             <div class="email-header">
+                <img src="https://ffw-frontend-ten.vercel.app/logo/logo.png" alt="Financially Fit World Logo" />
                 <h1>Financially Fit World</h1>
                 <h2>{title}</h2>
             </div>
