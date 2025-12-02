@@ -66,7 +66,7 @@ def get_base_template(title: str, content: str, header_color: str = "#049ad1") -
             padding: 40px 30px;
             background-color: #ffffff;
         }}
-        .email-content h2 {{
+        .email-content h3 {{
             margin: 0 0 20px 0;
             font-size: 24px;
             font-weight: 600;
@@ -204,7 +204,7 @@ def get_verification_email_template(full_name: str, verification_url: str) -> Tu
         Tuple of (html_content, text_content)
     """
     content = f"""
-        <h2>Hi {full_name},</h2>
+        <h3>Hi {full_name},</h3>
         <p>You're just one step away from unlocking your personalized fitness and finance experience.</p>
         <p>To complete your registration and activate your account, please verify your email by clicking the link below:</p>
         
@@ -262,7 +262,7 @@ def get_password_reset_email_template(full_name: str, reset_url: str) -> Tuple[s
         Tuple of (html_content, text_content)
     """
     content = f"""
-        <h2>Hi {full_name},</h2>
+        <h3>Hi {full_name},</h3>
         <p>We received a request to reset the password for your FiNFIT World account.</p>
         <p>Click the button below to create a new password:</p>
         
@@ -320,7 +320,7 @@ def get_welcome_email_template(full_name: str, dashboard_url: str) -> Tuple[str,
         Tuple of (html_content, text_content)
     """
     content = f"""
-        <h2>Welcome to FiNFIT World</h2>
+        <h3>Welcome to FiNFIT World</h3>
         <p>We are excited to have you join a community built to help you grow, thrive, and achieve more in your financial journey.</p>
         
         <p>Your account is now active, and you are all set to explore everything FiNFIT World has to offer — learning resources and tailored features designed to elevate your financial independence.</p>
@@ -392,7 +392,7 @@ def get_course_completion_email_template(
         Tuple of (html_content, text_content)
     """
     content = f"""
-        <h2>Congratulations, {full_name}!</h2>
+        <h3>Congratulations, {full_name}!</h3>
         <p>You've done it! You have successfully completed the course, and we couldn't be more proud of your dedication and hard work throughout this learning journey.</p>
         
         <div class="certificate-box">
@@ -479,7 +479,7 @@ def get_signature_confirmation_email_template(
         Tuple of (html_content, text_content)
     """
     content = f"""
-        <h2>Great job, {full_name}! ✅</h2>
+        <h3>Great job, {full_name}! ✅</h3>
         <p>Your digital signature has been successfully submitted and recorded.</p>
         
         <div class="info-box">
@@ -562,7 +562,7 @@ def get_notification_email_template(
         Tuple of (html_content, text_content)
     """
     content = f"""
-        <h2>Hi {full_name},</h2>
+        <h3>Hi {full_name},</h3>
         <p>You have a new notification from Financially Fit World:</p>
         
         <div class="info-box">
