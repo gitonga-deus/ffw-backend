@@ -1151,11 +1151,25 @@ async def delete_module(
             detail="Module not found"
         )
     
-    # Delete the module (cascade will handle content deletion)
-    db.delete(module)
-    db.commit()
-    
-    return {"message": "Module deleted successfully"}
+    try:
+        # Clear any enrollment references to this module before deletion
+        from app.models.enrollment import Enrollment
+        db.query(Enrollment).filter(
+            Enrollment.last_accessed_module_id == module_id
+        ).update({"last_accessed_module_id": None})
+        
+        # Delete the module (cascade will handle content deletion)
+        db.delete(module)
+        db.commit()
+        
+        return {"message": "Module deleted successfully"}
+    except Exception as e:
+        db.rollback()
+        print(f"Error deleting module: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete module: {str(e)}"
+        )
 
 
 @router.delete("/content/{content_id}")

@@ -17,5 +17,5 @@ class Enrollment(Base):
     enrolled_at = Column(DateTime, default=func.now(), nullable=False)
     completed_at = Column(DateTime, index=True)
     progress_percentage = Column(Numeric(5, 2), default=0.00, nullable=False)
-    last_accessed_module_id = Column(String, ForeignKey("modules.id"))
+    last_accessed_module_id = Column(String, ForeignKey("modules.id", ondelete="SET NULL"))
     last_accessed_at = Column(DateTime)
