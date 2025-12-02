@@ -80,14 +80,18 @@ class AuthService:
         
         # Send verification email (non-blocking - don't fail registration if email fails)
         try:
-            await email_service.send_verification_email(
+            email_result = await email_service.send_verification_email(
                 to=new_user.email,
                 full_name=new_user.full_name,
                 token=verification_token
             )
+            if not email_result.get("success"):
+                print(f"Warning: Verification email failed for {new_user.email}: {email_result.get('error')}")
         except Exception as e:
             # Log the error but don't fail registration
-            print(f"Failed to send verification email: {str(e)}")
+            print(f"Error sending verification email to {new_user.email}: {str(e)}")
+            import traceback
+            traceback.print_exc()
             # User is still created, they can request a new verification email later
         
         return new_user, verification_token

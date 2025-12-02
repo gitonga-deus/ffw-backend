@@ -56,15 +56,16 @@ def get_base_template(title: str, content: str, header_color: str = "#049ad1") -
             padding: 30px 20px;
             text-align: center;
         }}
-        .email-header img {{
-            max-width: 150px;
-            height: auto;
-            margin-bottom: 15px;
-        }}
         .email-header h1 {{
-            margin: 0;
+            margin: 0 0 5px 0;
             font-size: 28px;
             font-weight: 600;
+        }}
+        .email-header h2 {{
+            margin: 0;
+            font-size: 18px;
+            font-weight: 400;
+            opacity: 0.95;
         }}
         .email-content {{
             padding: 40px 30px;
@@ -177,8 +178,8 @@ def get_base_template(title: str, content: str, header_color: str = "#049ad1") -
     <div class="email-wrapper">
         <div class="email-container">
             <div class="email-header">
-                <h1>FiNFIT World</h1>
-                <h2 style="margin: 10px 0 0 0; font-size: 20px; font-weight: 400;">{title}</h2>
+                <h1>Financially Fit World</h1>
+                <h2>{title}</h2>
             </div>
             <div class="email-content">
                 {content}
