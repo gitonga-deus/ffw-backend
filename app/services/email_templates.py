@@ -177,8 +177,8 @@ def get_base_template(title: str, content: str, header_color: str = "#049ad1") -
     <div class="email-wrapper">
         <div class="email-container">
             <div class="email-header">
-                <img src="https://ffw-frontend-ten.vercel.app/logo/logo.png" alt="FiNFIT World Logo" />
-                <h1>{title}</h1>
+                <h1>FiNFIT World</h1>
+                <h2 style="margin: 10px 0 0 0; font-size: 20px; font-weight: 400;">{title}</h2>
             </div>
             <div class="email-content">
                 {content}
