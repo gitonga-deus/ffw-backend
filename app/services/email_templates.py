@@ -51,27 +51,16 @@ def get_base_template(title: str, content: str, header_color: str = "#049ad1") -
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }}
         .email-header {{
-            background-color: {header_color};
-            color: #ffffff;
-            padding: 30px 20px;
+            background-color: #ffffff;
+            padding: 40px 20px;
             text-align: center;
+            border-bottom: 2px solid #e5e7eb;
         }}
         .email-header img {{
-            max-width: 150px;
+            max-width: 200px;
             height: auto;
-            margin: 0 auto 15px;
+            margin: 0 auto;
             display: block;
-        }}
-        .email-header h1 {{
-            margin: 0 0 5px 0;
-            font-size: 28px;
-            font-weight: 600;
-        }}
-        .email-header h2 {{
-            margin: 0;
-            font-size: 18px;
-            font-weight: 400;
-            opacity: 0.95;
         }}
         .email-content {{
             padding: 40px 30px;
@@ -185,8 +174,6 @@ def get_base_template(title: str, content: str, header_color: str = "#049ad1") -
         <div class="email-container">
             <div class="email-header">
                 <img src="https://ffw-frontend-ten.vercel.app/logo/logo.png" alt="Financially Fit World Logo" />
-                <h1>Financially Fit World</h1>
-                <h2>{title}</h2>
             </div>
             <div class="email-content">
                 {content}
