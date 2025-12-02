@@ -60,13 +60,22 @@ class CertificateService:
         # Use absolute path to ensure template is found regardless of working directory
         import os
         # __file__ is in backend/app/services/certificate_service.py
-        # Go up 3 levels to get to project root, then into backend/assets
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        self.template_path = os.path.join(project_root, "backend", "assets", "certificate_template.pdf")
+        # Go up 2 levels to get to backend/, then into assets
+        backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        self.template_path = os.path.join(backend_dir, "assets", "certificate_template.pdf")
         self.backend_url = settings.backend_url
         self.template_available = False
         self.fonts_available = False
         self._fonts_initialized = False  # Track if fonts have been loaded
+        
+        # Verify template exists on initialization
+        if os.path.exists(self.template_path):
+            self.template_available = True
+            print(f"✓ Certificate template loaded: {self.template_path}")
+        else:
+            self.template_available = False
+            print(f"✗ WARNING: Certificate template not found at: {self.template_path}")
+            print(f"  Certificates will be generated using simple fallback template.")
     
     def _register_fonts(self):
         """Register custom fonts for use in PDF generation. Called lazily on first use."""
@@ -75,9 +84,9 @@ class CertificateService:
         
         self._fonts_initialized = True
         import os
-        # Get project root (same as template path calculation)
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        fonts_dir = os.path.join(project_root, "backend", "assets", "fonts")
+        # Get backend directory (same as template path calculation)
+        backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        fonts_dir = os.path.join(backend_dir, "assets", "fonts")
         
         try:
             # Try to register Cinzel font
@@ -349,38 +358,12 @@ class CertificateService:
             self._register_fonts()
             
             # Try to use template if available, otherwise create simple certificate
-            try:
-                # Attempt to load template
-                import os
-                if os.path.exists(self.template_path):
-                    template = PdfReader(self.template_path)
-                else:
-                    raise FileNotFoundError("Template not found")
-                
-                # Create text overlay
-                overlay_packet = self.create_text_overlay(
-                    student_name=user.full_name,
-                    issue_date=issue_date,
-                    cert_id=cert_id,
-                    verify_url=verify_url
-                )
-                
-                # Merge overlay with template
-                overlay = PdfReader(overlay_packet)
-                output = PdfWriter()
-                
-                page = template.pages[0]
-                page.merge_page(overlay.pages[0])
-                output.add_page(page)
-                
-                # Write to BytesIO
-                output_packet = io.BytesIO()
-                output.write(output_packet)
-                output_packet.seek(0)
-                
-            except (FileNotFoundError, Exception) as e:
-                print(f"Template not found or error loading template: {e}")
-                print("Generating simple certificate without template")
+            import os
+            if not os.path.exists(self.template_path):
+                print(f"ERROR: Certificate template not found at: {self.template_path}")
+                print(f"Current working directory: {os.getcwd()}")
+                print(f"Backend directory: {os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))}")
+                print("Falling back to simple certificate without template")
                 
                 # Create simple certificate without template
                 output_packet = self.create_simple_certificate(
@@ -390,6 +373,50 @@ class CertificateService:
                     cert_id=cert_id,
                     verify_url=verify_url
                 )
+            else:
+                try:
+                    print(f"Using certificate template from: {self.template_path}")
+                    
+                    # Load template
+                    template = PdfReader(self.template_path)
+                    
+                    # Create text overlay
+                    overlay_packet = self.create_text_overlay(
+                        student_name=user.full_name,
+                        issue_date=issue_date,
+                        cert_id=cert_id,
+                        verify_url=verify_url
+                    )
+                    
+                    # Merge overlay with template
+                    overlay = PdfReader(overlay_packet)
+                    output = PdfWriter()
+                    
+                    page = template.pages[0]
+                    page.merge_page(overlay.pages[0])
+                    output.add_page(page)
+                    
+                    # Write to BytesIO
+                    output_packet = io.BytesIO()
+                    output.write(output_packet)
+                    output_packet.seek(0)
+                    
+                    print(f"Successfully generated certificate using template for {user.full_name}")
+                    
+                except Exception as e:
+                    print(f"ERROR: Failed to generate certificate with template: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    print("Falling back to simple certificate without template")
+                    
+                    # Create simple certificate without template
+                    output_packet = self.create_simple_certificate(
+                        student_name=user.full_name,
+                        course_title=course.title,
+                        issue_date=issue_date,
+                        cert_id=cert_id,
+                        verify_url=verify_url
+                    )
             
             # Upload to Vercel Blob
             filename = f"certificates/{cert_id}.pdf"

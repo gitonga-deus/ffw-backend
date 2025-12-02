@@ -10,8 +10,8 @@ class Settings(BaseSettings):
     # JWT
     secret_key: str = "CHANGE-THIS-IN-PRODUCTION-USE-SECURE-RANDOM-KEY"
     algorithm: str = "HS256"
-    access_token_expire_minutes: int = 30
-    refresh_token_expire_days: int = 7
+    access_token_expire_minutes: int = 60 * 24  # 24 hours instead of 30 minutes
+    refresh_token_expire_days: int = 30  # 30 days instead of 7
     
     # External Services
     resend_api_key: str = ""

@@ -242,11 +242,13 @@ async def refresh_token(
     access_token = create_access_token(token_data)
     refresh_token = create_refresh_token(token_data)
     
+    from app.config import settings
+    
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
         token_type="bearer",
-        expires_in=60 * 30,  # 30 minutes
+        expires_in=settings.access_token_expire_minutes * 60,  # in seconds
         user=UserResponse.model_validate(current_user)
     )
 
