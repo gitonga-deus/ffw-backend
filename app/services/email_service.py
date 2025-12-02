@@ -191,7 +191,7 @@ class EmailService:
         Returns:
             Dict containing success status and details
         """
-        dashboard_url = f"{settings.frontend_url}/dashboard"
+        dashboard_url = f"{settings.frontend_url}/students/dashboard"
         
         html, text = get_welcome_email_template(
             full_name=full_name,
@@ -224,8 +224,8 @@ class EmailService:
         Returns:
             Dict containing success status and details
         """
-        verify_url = f"{settings.frontend_url}/verify-certificate/{cert_id}"
-        certificate_page_url = f"{settings.frontend_url}/certificate"
+        verify_url = f"{settings.frontend_url}/v/{cert_id}"
+        certificate_page_url = f"{settings.frontend_url}/students/certificate"
         
         html, text = get_course_completion_email_template(
             full_name=full_name,
@@ -290,7 +290,7 @@ class EmailService:
         Returns:
             Dict containing success status and details
         """
-        dashboard_url = f"{settings.frontend_url}/dashboard"
+        dashboard_url = f"{settings.frontend_url}/students/dashboard"
         
         html, text = get_notification_email_template(
             full_name=full_name,
