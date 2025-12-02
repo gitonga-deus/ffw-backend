@@ -57,8 +57,8 @@ def get_base_template(title: str, content: str, header_color: str = "#049ad1") -
             border-bottom: 1px solid #e5e7eb;
         }}
         .email-header img {{
-            max-width: 240px;
-            height: 96px;
+            max-width: 200px;
+            height: 80px;
             margin: 0 auto;
             display: block;
         }}
