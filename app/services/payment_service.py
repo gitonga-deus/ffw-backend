@@ -20,7 +20,7 @@ class PaymentService:
         self.vendor_id = settings.ipay_vendor_id
         self.secret_key = settings.ipay_secret_key
         self.base_url = "https://payments.ipayafrica.com/v3/ke"
-        self.callback_url = f"{settings.backend_url}/api/enrollment/callback"
+        self.callback_url = f"{settings.backend_url}/enrollment/callback"
     
     def create_payment_record(
         self,
