@@ -68,7 +68,7 @@ def get_base_template(title: str, content: str, header_color: str = "#049ad1") -
         }}
         .email-content h3 {{
             margin: 0 0 20px 0;
-            font-size: 24px;
+            font-size: 18px;
             font-weight: 600;
             color: #111827;
         }}
