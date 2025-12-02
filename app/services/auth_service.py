@@ -78,12 +78,17 @@ class AuthService:
         db.commit()
         db.refresh(new_user)
         
-        # Send verification email
-        await email_service.send_verification_email(
-            to=new_user.email,
-            full_name=new_user.full_name,
-            token=verification_token
-        )
+        # Send verification email (non-blocking - don't fail registration if email fails)
+        try:
+            await email_service.send_verification_email(
+                to=new_user.email,
+                full_name=new_user.full_name,
+                token=verification_token
+            )
+        except Exception as e:
+            # Log the error but don't fail registration
+            print(f"Failed to send verification email: {str(e)}")
+            # User is still created, they can request a new verification email later
         
         return new_user, verification_token
     
