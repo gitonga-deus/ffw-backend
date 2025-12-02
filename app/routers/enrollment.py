@@ -91,7 +91,9 @@ async def payment_callback(request: Request, db: Session = Depends(get_db)):
     
     try:
         callback_data = dict(request.query_params)
-        logger.info(f"iPay callback received: {callback_data}")
+        logger.info(f"=== iPay Callback START ===")
+        logger.info(f"Callback data: {callback_data}")
+        logger.info(f"Frontend URL: {frontend_url}")
         
         # Verify signature
         if not payment_service.verify_callback_signature(callback_data):
