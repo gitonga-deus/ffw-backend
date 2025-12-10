@@ -14,7 +14,7 @@ class Enrollment(Base):
     payment_id = Column(String, ForeignKey("payments.id"))
     signature_url = Column(String)
     signature_created_at = Column(DateTime)
-    enrolled_at = Column(DateTime, default=func.now(), nullable=False)
+    enrolled_at = Column(DateTime, default=func.now(), nullable=False, index=True)  # Index for analytics queries
     completed_at = Column(DateTime, index=True)
     progress_percentage = Column(Numeric(5, 2), default=0.00, nullable=False)
     last_accessed_module_id = Column(String, ForeignKey("modules.id", ondelete="SET NULL"))

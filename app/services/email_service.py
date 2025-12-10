@@ -52,14 +52,20 @@ class EmailService:
         Returns:
             Dict containing success status and message/error details
         """
+        # Development mode - redirect emails to verified address
         if not self.api_key:
-            # Development mode - log email instead of sending
             print(f"\n{'='*60}")
             print(f"[DEV MODE] Email would be sent:")
             print(f"To: {to}")
             print(f"Subject: {subject}")
             print(f"{'='*60}\n")
-            return {"success": True, "message": "Email logged (dev mode)", "id": "dev-mode"}
+            return {"success": True, "message": "Email logged (dev mode - no API key)", "id": "dev-mode"}
+        
+        # In development, redirect all emails to verified address to avoid Resend 403 errors
+        if settings.environment == "development":
+            original_to = to
+            to = "gitonga.deus@gmail.com"  # Your verified Resend email
+            print(f"\n[DEV MODE] Redirecting email from {original_to} to {to}")
         
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:

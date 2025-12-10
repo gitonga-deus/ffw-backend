@@ -11,8 +11,8 @@ app = FastAPI(
     title="Financially Fit World API",
     description="Learning Management System API",
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc"
+    docs_url="/api/docs",
+    redoc_url="/api/redoc"
 )
 
 # Startup and shutdown events for background scheduler
@@ -68,22 +68,22 @@ app.add_middleware(
 #     allowed_hosts=["yourdomain.com", "*.yourdomain.com", "localhost"]
 # )
 
-# Include routers
-app.include_router(auth.router)
-app.include_router(enrollment.router)
-app.include_router(course.router)
-app.include_router(admin.router)
-app.include_router(progress.router)
-app.include_router(certificates.router)
-app.include_router(reviews.router)
-app.include_router(analytics.router)
-app.include_router(announcements.router)
-app.include_router(payments.router)
-app.include_router(payment_admin.router)
-app.include_router(webhooks.router)
-app.include_router(webhook_diagnostics.router)
-app.include_router(exercises.router)
-app.include_router(cron.router)
+# Include routers with /api prefix
+app.include_router(auth.router, prefix="/api")
+app.include_router(enrollment.router, prefix="/api")
+app.include_router(course.router, prefix="/api")
+app.include_router(admin.router, prefix="/api")
+app.include_router(progress.router, prefix="/api")
+app.include_router(certificates.router, prefix="/api")
+app.include_router(reviews.router, prefix="/api")
+app.include_router(analytics.router, prefix="/api")
+app.include_router(announcements.router, prefix="/api")
+app.include_router(payments.router, prefix="/api")
+app.include_router(payment_admin.router, prefix="/api")
+app.include_router(webhooks.router, prefix="/api")
+app.include_router(webhook_diagnostics.router, prefix="/api")
+app.include_router(exercises.router, prefix="/api")
+app.include_router(cron.router, prefix="/api")
 
 
 @app.get("/")

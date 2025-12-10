@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 from datetime import datetime
 
@@ -7,7 +7,23 @@ class ProgressUpdateRequest(BaseModel):
     """Request schema for updating progress."""
     is_completed: bool = Field(default=False, description="Whether the content is completed")
     time_spent: int = Field(default=0, ge=0, description="Time spent in seconds")
-    last_position: Optional[int] = Field(default=None, ge=0, description="Last position (seconds for video, page for PDF)")
+    last_position: Optional[int] = Field(default=None, description="Last position (seconds for video, page for PDF)")
+    
+    @field_validator('time_spent')
+    @classmethod
+    def validate_time_spent(cls, v):
+        """Validate time_spent is non-negative."""
+        if v < 0:
+            raise ValueError("time_spent must be greater than or equal to 0")
+        return v
+    
+    @field_validator('last_position')
+    @classmethod
+    def validate_last_position(cls, v):
+        """Validate last_position is non-negative when provided."""
+        if v is not None and v < 0:
+            raise ValueError("last_position must be greater than or equal to 0")
+        return v
 
 
 class ContentProgressResponse(BaseModel):

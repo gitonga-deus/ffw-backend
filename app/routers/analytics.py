@@ -19,10 +19,10 @@ from app.schemas.analytics import (
 
 router = APIRouter(prefix="/admin/analytics", tags=["analytics"])
 
-# Simple in-memory cache (1 hour TTL - refreshed by cron)
+# Simple in-memory cache (10 minutes TTL - analytics don't need real-time updates)
 _dashboard_cache: Optional[dict] = None
 _cache_timestamp: Optional[datetime] = None
-CACHE_TTL = timedelta(hours=1)
+CACHE_TTL = timedelta(minutes=10)
 
 
 @router.get("/dashboard", response_model=DashboardAnalyticsResponse)
@@ -43,7 +43,7 @@ async def get_dashboard_analytics(
     - Review analytics with rating distribution
     - Recent activity (enrollments and completions)
     
-    Cached for 5 minutes to improve performance. Use force_refresh=true to bypass cache.
+    Cached for 10 minutes to improve performance. Use force_refresh=true to bypass cache.
     
     Returns:
         Complete dashboard analytics data
@@ -185,3 +185,88 @@ async def get_recent_activity(
     """
     data = analytics_service.get_recent_activity(db)
     return RecentActivity(**data)
+
+
+@router.get("/dashboard-with-payments")
+async def get_dashboard_with_payments(
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+    force_refresh: bool = False,
+    page: int = 1,
+    page_size: int = 20
+):
+    """
+    Get complete dashboard analytics with recent payments in a single request.
+    
+    This endpoint combines analytics and payments data to reduce round trips.
+    Optimized for dashboard loading performance.
+    
+    Admin only.
+    
+    Returns:
+        Combined analytics and payments data
+    """
+    import time
+    start_time = time.time()
+    
+    global _dashboard_cache, _cache_timestamp
+    
+    # Check if cache is valid for analytics
+    now = datetime.utcnow()
+    cache_hit = False
+    if (not force_refresh and 
+        _dashboard_cache is not None and 
+        _cache_timestamp is not None and 
+        now - _cache_timestamp < CACHE_TTL):
+        analytics_data = _dashboard_cache
+        cache_hit = True
+    else:
+        # Fetch fresh analytics data
+        analytics_start = time.time()
+        analytics_data = analytics_service.get_dashboard_analytics(db)
+        analytics_duration = time.time() - analytics_start
+        print(f"[PERFORMANCE] Analytics queries took {analytics_duration:.2f}s")
+        
+        _dashboard_cache = analytics_data
+        _cache_timestamp = now
+    
+    # Fetch recent payments (not cached as they change frequently)
+    from app.models.payment import Payment
+    from app.models.user import User as UserModel
+    
+    payments_start = time.time()
+    skip = (page - 1) * page_size
+    payments_query = db.query(Payment, UserModel).join(
+        UserModel, Payment.user_id == UserModel.id
+    ).order_by(
+        Payment.created_at.desc()
+    ).offset(skip).limit(page_size).all()
+    
+    payments = []
+    for payment, user in payments_query:
+        payments.append({
+            "id": payment.id,
+            "user_id": payment.user_id,
+            "user_name": user.full_name,
+            "user_email": user.email,
+            "amount": str(payment.amount),
+            "currency": payment.currency,
+            "status": payment.status,
+            "payment_method": payment.payment_method,
+            "ipay_transaction_id": payment.ipay_transaction_id,
+            "ipay_reference": payment.ipay_reference,
+            "created_at": payment.created_at.isoformat()
+        })
+    
+    payments_duration = time.time() - payments_start
+    total_duration = time.time() - start_time
+    
+    print(f"[PERFORMANCE] Payments query took {payments_duration:.2f}s")
+    print(f"[PERFORMANCE] Total request took {total_duration:.2f}s (cache_hit={cache_hit})")
+    
+    return {
+        "analytics": analytics_data,
+        "payments": payments,
+        "payments_page": page,
+        "payments_page_size": page_size
+    }

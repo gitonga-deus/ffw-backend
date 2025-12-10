@@ -20,6 +20,27 @@ from app.services.progress_service import progress_service
 router = APIRouter(prefix="", tags=["course"])
 
 
+def parse_rich_text_content(content: str):
+    """
+    Parse rich text content - handles both JSON and plain HTML.
+    
+    Args:
+        content: String that could be JSON or plain HTML
+        
+    Returns:
+        Parsed content (dict if JSON, string if HTML)
+    """
+    if not content:
+        return None
+    
+    # Try to parse as JSON first
+    try:
+        return json.loads(content)
+    except (json.JSONDecodeError, ValueError):
+        # If it's not valid JSON, return as plain HTML string
+        return content
+
+
 @router.get("/course", response_model=CourseResponse)
 async def get_course(db: Session = Depends(get_db)):
     """
@@ -225,7 +246,7 @@ async def get_module_content(
             "video_duration": item.video_duration,
             "pdf_url": storage_service.get_signed_url(item.pdf_url) if item.pdf_url else None,
             "pdf_filename": item.pdf_filename,
-            "rich_text_content": json.loads(item.rich_text_content) if item.rich_text_content else None,
+            "rich_text_content": parse_rich_text_content(item.rich_text_content) if item.rich_text_content else None,
             "is_published": item.is_published,
             "created_at": item.created_at,
             "updated_at": item.updated_at

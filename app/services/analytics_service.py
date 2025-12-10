@@ -81,146 +81,144 @@ class AnalyticsService:
         }
     
     def get_user_analytics(self, db: Session) -> Dict:
-        """Get user analytics data."""
+        """Get user analytics data - OPTIMIZED."""
         now = datetime.utcnow()
         month_start = datetime(now.year, now.month, 1)
         days_30_ago = now - timedelta(days=30)
         
-        # Basic counts
-        total_users = db.query(User).count()
-        verified_users = db.query(User).filter(User.is_verified == True).count()
-        unverified_users = total_users - verified_users
-        enrolled_users = db.query(User).filter(User.is_enrolled == True).count()
-        non_enrolled_users = total_users - enrolled_users
-        new_users_this_month = db.query(User).filter(
-            User.created_at >= month_start
-        ).count()
+        # Single query for all user counts using aggregation
+        user_stats = db.query(
+            func.count(User.id).label('total'),
+            func.sum(case((User.is_verified == True, 1), else_=0)).label('verified'),
+            func.sum(case((User.is_enrolled == True, 1), else_=0)).label('enrolled'),
+            func.sum(case((User.created_at >= month_start, 1), else_=0)).label('new_this_month')
+        ).first()
         
-        # User growth data (last 30 days)
+        total_users = user_stats.total or 0
+        verified_users = user_stats.verified or 0
+        enrolled_users = user_stats.enrolled or 0
+        new_users_this_month = user_stats.new_this_month or 0
+        
+        # Single query for growth data using date_trunc (PostgreSQL) or date() (SQLite)
+        # This replaces 30+ individual queries with ONE query
+        growth_query = db.query(
+            func.date(User.created_at).label('date'),
+            func.count(User.id).label('new_users')
+        ).filter(
+            User.created_at >= days_30_ago
+        ).group_by(
+            func.date(User.created_at)
+        ).all()
+        
+        # Convert to dict for fast lookup
+        growth_dict = {str(row.date): row.new_users for row in growth_query}
+        
+        # Build complete 30-day array (fill missing dates with 0)
         growth_data = []
         current_date = days_30_ago.date()
         end_date = now.date()
         
         while current_date <= end_date:
-            next_date = current_date + timedelta(days=1)
-            
-            new_users = db.query(User).filter(
-                and_(
-                    User.created_at >= datetime.combine(current_date, datetime.min.time()),
-                    User.created_at < datetime.combine(next_date, datetime.min.time())
-                )
-            ).count()
-            
-            # Note: We can't track when users were verified, so we'll use 0 for now
-            # In a real system, you'd want a verification_date field
-            verified_count = 0
-            
             growth_data.append({
                 "date": current_date.isoformat(),
-                "new_users": new_users,
-                "verified_users": verified_count
+                "new_users": growth_dict.get(str(current_date), 0),
+                "verified_users": 0  # Not tracked
             })
-            
-            current_date = next_date
+            current_date += timedelta(days=1)
         
         return {
             "total_users": total_users,
             "verified_users": verified_users,
-            "unverified_users": unverified_users,
+            "unverified_users": total_users - verified_users,
             "enrolled_users": enrolled_users,
-            "non_enrolled_users": non_enrolled_users,
+            "non_enrolled_users": total_users - enrolled_users,
             "new_users_this_month": new_users_this_month,
             "growth_data": growth_data
         }
     
     def get_enrollment_analytics(self, db: Session) -> Dict:
-        """Get enrollment analytics data."""
+        """Get enrollment analytics data - OPTIMIZED."""
         now = datetime.utcnow()
         days_30_ago = now - timedelta(days=30)
         
-        # Basic counts
-        total_enrollments = db.query(Enrollment).count()
-        active_enrollments = db.query(Enrollment).filter(
-            Enrollment.completed_at.is_(None)
-        ).count()
-        completed_enrollments = db.query(Enrollment).filter(
-            Enrollment.completed_at.isnot(None)
-        ).count()
+        # Single query for all enrollment counts and averages
+        enrollment_stats = db.query(
+            func.count(Enrollment.id).label('total'),
+            func.sum(case((Enrollment.completed_at.is_(None), 1), else_=0)).label('active'),
+            func.sum(case((Enrollment.completed_at.isnot(None), 1), else_=0)).label('completed'),
+            func.avg(Enrollment.progress_percentage).label('avg_progress'),
+            func.avg(
+                case(
+                    (Enrollment.completed_at.isnot(None),
+                     func.julianday(Enrollment.completed_at) - func.julianday(Enrollment.enrolled_at)),
+                    else_=None
+                )
+            ).label('avg_completion_days')
+        ).first()
         
-        # Average progress
-        avg_progress = db.query(
-            func.avg(Enrollment.progress_percentage)
-        ).scalar() or 0.0
+        total_enrollments = enrollment_stats.total or 0
+        active_enrollments = enrollment_stats.active or 0
+        completed_enrollments = enrollment_stats.completed or 0
+        avg_progress = enrollment_stats.avg_progress or 0.0
+        average_completion_days = enrollment_stats.avg_completion_days
         
         # Completion rate
         completion_rate = 0.0
         if total_enrollments > 0:
             completion_rate = round((completed_enrollments / total_enrollments) * 100, 2)
         
-        # Average completion days
-        completed = db.query(Enrollment).filter(
-            Enrollment.completed_at.isnot(None)
-        ).all()
+        # Progress distribution - single query with CASE statements
+        distribution_query = db.query(
+            func.sum(case((Enrollment.progress_percentage < 26, 1), else_=0)).label('range_0_25'),
+            func.sum(case((and_(Enrollment.progress_percentage >= 26, Enrollment.progress_percentage < 51), 1), else_=0)).label('range_26_50'),
+            func.sum(case((and_(Enrollment.progress_percentage >= 51, Enrollment.progress_percentage < 76), 1), else_=0)).label('range_51_75'),
+            func.sum(case((and_(Enrollment.progress_percentage >= 76, Enrollment.progress_percentage < 100), 1), else_=0)).label('range_76_99'),
+            func.sum(case((Enrollment.progress_percentage == 100, 1), else_=0)).label('range_100')
+        ).first()
         
-        average_completion_days = None
-        if completed:
-            total_days = sum(
-                (e.completed_at - e.enrolled_at).days for e in completed
-            )
-            average_completion_days = round(total_days / len(completed), 2)
-        
-        # Progress distribution
-        enrollments = db.query(Enrollment).all()
         distribution = {
-            "range_0_25": 0,
-            "range_26_50": 0,
-            "range_51_75": 0,
-            "range_76_99": 0,
-            "range_100": 0
+            "range_0_25": distribution_query.range_0_25 or 0,
+            "range_26_50": distribution_query.range_26_50 or 0,
+            "range_51_75": distribution_query.range_51_75 or 0,
+            "range_76_99": distribution_query.range_76_99 or 0,
+            "range_100": distribution_query.range_100 or 0
         }
         
-        for enrollment in enrollments:
-            progress = float(enrollment.progress_percentage)
-            if progress == 100:
-                distribution["range_100"] += 1
-            elif progress >= 76:
-                distribution["range_76_99"] += 1
-            elif progress >= 51:
-                distribution["range_51_75"] += 1
-            elif progress >= 26:
-                distribution["range_26_50"] += 1
-            else:
-                distribution["range_0_25"] += 1
+        # Trend data - TWO queries instead of 60+
+        enrollments_by_date = db.query(
+            func.date(Enrollment.enrolled_at).label('date'),
+            func.count(Enrollment.id).label('count')
+        ).filter(
+            Enrollment.enrolled_at >= days_30_ago
+        ).group_by(
+            func.date(Enrollment.enrolled_at)
+        ).all()
         
-        # Trend data (last 30 days)
+        completions_by_date = db.query(
+            func.date(Enrollment.completed_at).label('date'),
+            func.count(Enrollment.id).label('count')
+        ).filter(
+            Enrollment.completed_at >= days_30_ago
+        ).group_by(
+            func.date(Enrollment.completed_at)
+        ).all()
+        
+        # Convert to dicts for fast lookup
+        enrollments_dict = {str(row.date): row.count for row in enrollments_by_date}
+        completions_dict = {str(row.date): row.count for row in completions_by_date}
+        
+        # Build complete 30-day array
         trend_data = []
         current_date = days_30_ago.date()
         end_date = now.date()
         
         while current_date <= end_date:
-            next_date = current_date + timedelta(days=1)
-            
-            enrollments_count = db.query(Enrollment).filter(
-                and_(
-                    Enrollment.enrolled_at >= datetime.combine(current_date, datetime.min.time()),
-                    Enrollment.enrolled_at < datetime.combine(next_date, datetime.min.time())
-                )
-            ).count()
-            
-            completions_count = db.query(Enrollment).filter(
-                and_(
-                    Enrollment.completed_at >= datetime.combine(current_date, datetime.min.time()),
-                    Enrollment.completed_at < datetime.combine(next_date, datetime.min.time())
-                )
-            ).count()
-            
             trend_data.append({
                 "date": current_date.isoformat(),
-                "enrollments": enrollments_count,
-                "completions": completions_count
+                "enrollments": enrollments_dict.get(str(current_date), 0),
+                "completions": completions_dict.get(str(current_date), 0)
             })
-            
-            current_date = next_date
+            current_date += timedelta(days=1)
         
         return {
             "total_enrollments": total_enrollments,
@@ -228,45 +226,50 @@ class AnalyticsService:
             "completed_enrollments": completed_enrollments,
             "average_progress": round(float(avg_progress), 2),
             "completion_rate": completion_rate,
-            "average_completion_days": average_completion_days,
+            "average_completion_days": round(average_completion_days, 2) if average_completion_days else None,
             "progress_distribution": distribution,
             "trend_data": trend_data
         }
     
     def get_revenue_analytics(self, db: Session) -> Dict:
-        """Get revenue analytics data."""
+        """Get revenue analytics data - OPTIMIZED."""
         now = datetime.utcnow()
         month_start = datetime(now.year, now.month, 1)
         last_month_start = (month_start - timedelta(days=1)).replace(day=1)
         days_30_ago = now - timedelta(days=30)
         
-        # Total revenue
-        total_revenue = db.query(
-            func.coalesce(func.sum(Payment.amount), 0)
-        ).filter(
-            Payment.status == PaymentStatus.COMPLETED.value
-        ).scalar() or Decimal('0')
+        # Single query for all revenue metrics
+        revenue_stats = db.query(
+            func.coalesce(
+                func.sum(case((Payment.status == PaymentStatus.COMPLETED.value, Payment.amount), else_=0)), 0
+            ).label('total'),
+            func.coalesce(
+                func.sum(case(
+                    (and_(Payment.status == PaymentStatus.COMPLETED.value, Payment.created_at >= month_start), Payment.amount),
+                    else_=0
+                )), 0
+            ).label('this_month'),
+            func.coalesce(
+                func.sum(case(
+                    (and_(
+                        Payment.status == PaymentStatus.COMPLETED.value,
+                        Payment.created_at >= last_month_start,
+                        Payment.created_at < month_start
+                    ), Payment.amount),
+                    else_=0
+                )), 0
+            ).label('last_month'),
+            func.avg(case((Payment.status == PaymentStatus.COMPLETED.value, Payment.amount), else_=None)).label('avg_transaction'),
+            func.sum(case((Payment.status == PaymentStatus.COMPLETED.value, 1), else_=0)).label('completed_count'),
+            func.sum(case((Payment.status == PaymentStatus.PENDING.value, 1), else_=0)).label('pending_count'),
+            func.sum(case((Payment.status == PaymentStatus.FAILED.value, 1), else_=0)).label('failed_count'),
+            func.sum(case((Payment.status == PaymentStatus.REFUNDED.value, 1), else_=0)).label('refunded_count')
+        ).first()
         
-        # Revenue this month
-        revenue_this_month = db.query(
-            func.coalesce(func.sum(Payment.amount), 0)
-        ).filter(
-            and_(
-                Payment.status == PaymentStatus.COMPLETED.value,
-                Payment.created_at >= month_start
-            )
-        ).scalar() or Decimal('0')
-        
-        # Revenue last month
-        revenue_last_month = db.query(
-            func.coalesce(func.sum(Payment.amount), 0)
-        ).filter(
-            and_(
-                Payment.status == PaymentStatus.COMPLETED.value,
-                Payment.created_at >= last_month_start,
-                Payment.created_at < month_start
-            )
-        ).scalar() or Decimal('0')
+        total_revenue = Decimal(str(revenue_stats.total or 0))
+        revenue_this_month = Decimal(str(revenue_stats.this_month or 0))
+        revenue_last_month = Decimal(str(revenue_stats.last_month or 0))
+        average_transaction_value = Decimal(str(revenue_stats.avg_transaction or 0))
         
         # Revenue growth percentage
         revenue_growth_percentage = None
@@ -274,57 +277,41 @@ class AnalyticsService:
             growth = ((revenue_this_month - revenue_last_month) / revenue_last_month) * 100
             revenue_growth_percentage = round(float(growth), 2)
         
-        # Average transaction value
-        completed_payments = db.query(Payment).filter(
-            Payment.status == PaymentStatus.COMPLETED.value
-        ).all()
-        
-        average_transaction_value = Decimal('0')
-        if completed_payments:
-            total = sum(p.amount for p in completed_payments)
-            average_transaction_value = total / len(completed_payments)
-        
         # Payment status breakdown
         payment_status_breakdown = {
-            "completed": db.query(Payment).filter(Payment.status == PaymentStatus.COMPLETED.value).count(),
-            "pending": db.query(Payment).filter(Payment.status == PaymentStatus.PENDING.value).count(),
-            "failed": db.query(Payment).filter(Payment.status == PaymentStatus.FAILED.value).count(),
-            "refunded": db.query(Payment).filter(Payment.status == PaymentStatus.REFUNDED.value).count()
+            "completed": revenue_stats.completed_count or 0,
+            "pending": revenue_stats.pending_count or 0,
+            "failed": revenue_stats.failed_count or 0,
+            "refunded": revenue_stats.refunded_count or 0
         }
         
-        # Trend data (last 30 days)
+        # Trend data - single query instead of 30+
+        trend_query = db.query(
+            func.date(Payment.created_at).label('date'),
+            func.sum(case((Payment.status == PaymentStatus.COMPLETED.value, Payment.amount), else_=0)).label('revenue'),
+            func.sum(case((Payment.status == PaymentStatus.COMPLETED.value, 1), else_=0)).label('payment_count')
+        ).filter(
+            Payment.created_at >= days_30_ago
+        ).group_by(
+            func.date(Payment.created_at)
+        ).all()
+        
+        # Convert to dict for fast lookup
+        trend_dict = {str(row.date): {"revenue": row.revenue, "payment_count": row.payment_count} for row in trend_query}
+        
+        # Build complete 30-day array
         trend_data = []
         current_date = days_30_ago.date()
         end_date = now.date()
         
         while current_date <= end_date:
-            next_date = current_date + timedelta(days=1)
-            
-            daily_revenue = db.query(
-                func.coalesce(func.sum(Payment.amount), 0)
-            ).filter(
-                and_(
-                    Payment.status == PaymentStatus.COMPLETED.value,
-                    Payment.created_at >= datetime.combine(current_date, datetime.min.time()),
-                    Payment.created_at < datetime.combine(next_date, datetime.min.time())
-                )
-            ).scalar() or Decimal('0')
-            
-            payment_count = db.query(Payment).filter(
-                and_(
-                    Payment.status == PaymentStatus.COMPLETED.value,
-                    Payment.created_at >= datetime.combine(current_date, datetime.min.time()),
-                    Payment.created_at < datetime.combine(next_date, datetime.min.time())
-                )
-            ).count()
-            
+            data = trend_dict.get(str(current_date), {"revenue": Decimal('0'), "payment_count": 0})
             trend_data.append({
                 "date": current_date.isoformat(),
-                "revenue": daily_revenue,
-                "payment_count": payment_count
+                "revenue": data["revenue"],
+                "payment_count": data["payment_count"]
             })
-            
-            current_date = next_date
+            current_date += timedelta(days=1)
         
         return {
             "total_revenue": total_revenue,
@@ -337,14 +324,21 @@ class AnalyticsService:
         }
     
     def get_content_analytics(self, db: Session) -> Dict:
-        """Get content analytics data."""
-        # Content counts by type
-        total_content_items = db.query(Content).count()
-        total_videos = db.query(Content).filter(Content.content_type == "video").count()
-        total_pdfs = db.query(Content).filter(Content.content_type == "pdf").count()
-        total_rich_text = db.query(Content).filter(Content.content_type == "rich_text").count()
+        """Get content analytics data - OPTIMIZED."""
+        # Single query for content counts by type using aggregation
+        content_counts = db.query(
+            func.count(Content.id).label('total'),
+            func.sum(case((Content.content_type == "video", 1), else_=0)).label('videos'),
+            func.sum(case((Content.content_type == "pdf", 1), else_=0)).label('pdfs'),
+            func.sum(case((Content.content_type == "rich_text", 1), else_=0)).label('rich_text')
+        ).first()
         
-        # Most viewed content (top 10)
+        total_content_items = content_counts.total or 0
+        total_videos = content_counts.videos or 0
+        total_pdfs = content_counts.pdfs or 0
+        total_rich_text = content_counts.rich_text or 0
+        
+        # Most viewed content (top 10) - optimized with single query
         content_stats = db.query(
             Content.id,
             Content.title,
@@ -400,31 +394,36 @@ class AnalyticsService:
         }
     
     def get_review_analytics(self, db: Session) -> Dict:
-        """Get review analytics data."""
-        # Review counts by status
-        total_reviews = db.query(Review).count()
-        approved_reviews = db.query(Review).filter(Review.status == ReviewStatus.APPROVED.value).count()
-        pending_reviews = db.query(Review).filter(Review.status == ReviewStatus.PENDING.value).count()
-        rejected_reviews = db.query(Review).filter(Review.status == ReviewStatus.REJECTED.value).count()
+        """Get review analytics data - OPTIMIZED."""
+        # Single query for all review stats using aggregation
+        review_stats = db.query(
+            func.count(Review.id).label('total'),
+            func.sum(case((Review.status == ReviewStatus.APPROVED.value, 1), else_=0)).label('approved'),
+            func.sum(case((Review.status == ReviewStatus.PENDING.value, 1), else_=0)).label('pending'),
+            func.sum(case((Review.status == ReviewStatus.REJECTED.value, 1), else_=0)).label('rejected'),
+            func.avg(case((Review.status == ReviewStatus.APPROVED.value, Review.rating), else_=None)).label('avg_rating'),
+            func.sum(case((Review.rating == 1, 1), else_=0)).label('rating_1'),
+            func.sum(case((Review.rating == 2, 1), else_=0)).label('rating_2'),
+            func.sum(case((Review.rating == 3, 1), else_=0)).label('rating_3'),
+            func.sum(case((Review.rating == 4, 1), else_=0)).label('rating_4'),
+            func.sum(case((Review.rating == 5, 1), else_=0)).label('rating_5')
+        ).first()
         
-        # Average rating (approved only)
-        approved = db.query(Review).filter(Review.status == ReviewStatus.APPROVED.value).all()
-        average_rating = 0.0
-        if approved:
-            total_rating = sum(review.rating for review in approved)
-            average_rating = round(total_rating / len(approved), 2)
+        total_reviews = review_stats.total or 0
+        approved_reviews = review_stats.approved or 0
+        pending_reviews = review_stats.pending or 0
+        rejected_reviews = review_stats.rejected or 0
+        average_rating = round(float(review_stats.avg_rating or 0), 2)
         
-        # Rating distribution (all reviews)
-        all_reviews = db.query(Review).all()
         rating_distribution = {
-            "rating_1": sum(1 for r in all_reviews if r.rating == 1),
-            "rating_2": sum(1 for r in all_reviews if r.rating == 2),
-            "rating_3": sum(1 for r in all_reviews if r.rating == 3),
-            "rating_4": sum(1 for r in all_reviews if r.rating == 4),
-            "rating_5": sum(1 for r in all_reviews if r.rating == 5)
+            "rating_1": review_stats.rating_1 or 0,
+            "rating_2": review_stats.rating_2 or 0,
+            "rating_3": review_stats.rating_3 or 0,
+            "rating_4": review_stats.rating_4 or 0,
+            "rating_5": review_stats.rating_5 or 0
         }
         
-        # Recent reviews (5 most recent)
+        # Recent reviews (5 most recent) - single query with join
         recent = db.query(Review, User).join(
             User, Review.user_id == User.id
         ).order_by(

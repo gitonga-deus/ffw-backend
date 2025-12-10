@@ -24,14 +24,28 @@ async def get_my_certificate(
     Raises:
         404: If certificate not found (course not completed)
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Certificate request from user: {current_user.email} (ID: {current_user.id})")
+    
+    # Query all certificates to debug
+    from app.models.certificate import Certificate as CertModel
+    all_certs = db.query(CertModel).all()
+    logger.info(f"Total certificates in database: {len(all_certs)}")
+    for cert in all_certs:
+        logger.info(f"  - Cert ID: {cert.certification_id}, User ID: {cert.user_id}, Student: {cert.student_name}")
+    
     certificate = certificate_service.get_user_certificate(db, current_user.id)
     
     if not certificate:
+        logger.warning(f"No certificate found for user {current_user.email} (ID: {current_user.id})")
+        logger.warning(f"Searched for user_id: {current_user.id} (type: {type(current_user.id)})")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Certificate not found. Complete the course to receive your certificate."
         )
     
+    logger.info(f"Certificate found: {certificate.certification_id}")
     return certificate
 
 

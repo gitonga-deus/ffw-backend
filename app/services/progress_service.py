@@ -1,8 +1,18 @@
+"""
+Progress Service - Rebuilt with improved architecture.
+
+This service provides robust progress tracking with:
+- Transaction-based updates for data consistency
+- Optimized database queries with proper joins
+- Sequential access validation
+- Accurate progress calculations
+"""
+
 from sqlalchemy.orm import Session
-from sqlalchemy import func
-from typing import Optional, List
+from sqlalchemy import func, case, and_
+from typing import Optional, List, Tuple
 from datetime import datetime
-import json
+from decimal import Decimal
 
 from app.models.user_progress import UserProgress
 from app.models.enrollment import Enrollment
@@ -12,12 +22,22 @@ from app.schemas.progress import (
     ProgressUpdateRequest,
     ContentProgressResponse,
     ModuleProgressResponse,
-    OverallProgressResponse
+    OverallProgressResponse,
+    ContentBreakdown,
+    CompletedContentBreakdown
 )
 
 
 class ProgressService:
-    """Service for managing user progress."""
+    """
+    Rebuilt progress service with improved reliability and performance.
+    
+    Key improvements:
+    - All operations use database transactions
+    - Optimized queries with joins to avoid N+1 problems
+    - Clear separation of concerns
+    - Comprehensive error handling
+    """
 
     def update_progress(
         self,
@@ -28,103 +48,74 @@ class ProgressService:
     ) -> UserProgress:
         """
         Create or update user progress for a content item.
-        Also updates enrollment progress percentage.
-        """
-        # Get or create progress record
-        progress = db.query(UserProgress).filter(
-            UserProgress.user_id == user_id,
-            UserProgress.content_id == content_id
-        ).first()
-
-        if progress:
-            # Update existing progress
-            progress.is_completed = progress_data.is_completed
-            progress.time_spent = progress_data.time_spent
-            progress.last_position = progress_data.last_position
-            progress.updated_at = datetime.utcnow()
+        
+        This method:
+        1. Creates or updates the progress record
+        2. Recalculates enrollment progress
+        3. Uses a transaction to ensure consistency
+        
+        Args:
+            db: Database session
+            user_id: User ID
+            content_id: Content ID
+            progress_data: Progress update data
             
-            if progress_data.is_completed and not progress.completed_at:
-                progress.completed_at = datetime.utcnow()
-        else:
-            # Create new progress record
-            progress = UserProgress(
-                user_id=user_id,
-                content_id=content_id,
-                is_completed=progress_data.is_completed,
-                time_spent=progress_data.time_spent,
-                last_position=progress_data.last_position,
-                completed_at=datetime.utcnow() if progress_data.is_completed else None
-            )
-            db.add(progress)
-
-        db.commit()
-        db.refresh(progress)
-
-        # Update enrollment progress
-        self._update_enrollment_progress(db, user_id, content_id)
-
-        return progress
-
-    def _update_enrollment_progress(
-        self,
-        db: Session,
-        user_id: str,
-        last_accessed_content_id: str
-    ) -> None:
+        Returns:
+            Updated UserProgress record
+            
+        Raises:
+            ValueError: If content doesn't exist or isn't published
         """
-        Calculate and update overall progress percentage in enrollment.
-        Includes exercises in the calculation.
-        """
-        from app.models.exercise import Exercise
-        from app.models.exercise_submission import ExerciseSubmission
-        
-        # Get enrollment
-        enrollment = db.query(Enrollment).filter(
-            Enrollment.user_id == user_id
-        ).first()
+        try:
+            # Verify content exists and is published
+            content = db.query(Content).filter(
+                Content.id == content_id,
+                Content.is_published == True
+            ).first()
+            
+            if not content:
+                raise ValueError("Content not found or not published")
+            
+            # Get or create progress record
+            progress = db.query(UserProgress).filter(
+                UserProgress.user_id == user_id,
+                UserProgress.content_id == content_id
+            ).first()
 
-        if not enrollment:
-            return
+            if progress:
+                # Update existing progress
+                progress.is_completed = progress_data.is_completed
+                progress.time_spent = progress_data.time_spent
+                progress.last_position = progress_data.last_position
+                progress.updated_at = datetime.utcnow()
+                
+                # Set completed_at timestamp on first completion
+                if progress_data.is_completed and not progress.completed_at:
+                    progress.completed_at = datetime.utcnow()
+            else:
+                # Create new progress record
+                progress = UserProgress(
+                    user_id=user_id,
+                    content_id=content_id,
+                    is_completed=progress_data.is_completed,
+                    time_spent=progress_data.time_spent,
+                    last_position=progress_data.last_position,
+                    completed_at=datetime.utcnow() if progress_data.is_completed else None
+                )
+                db.add(progress)
 
-        # Get total published content count (includes all content types including exercises)
-        total_content = db.query(func.count(Content.id)).filter(
-            Content.is_published == True
-        ).scalar()
+            # Commit progress update
+            db.commit()
+            db.refresh(progress)
 
-        if total_content == 0:
-            return
+            # Recalculate enrollment progress
+            self.recalculate_enrollment_progress(db, user_id)
 
-        # Get completed non-exercise content count for this user
-        completed_regular_content = db.query(func.count(UserProgress.id)).filter(
-            UserProgress.user_id == user_id,
-            UserProgress.is_completed == True
-        ).scalar()
-        
-        # Get completed exercise count for this user
-        # An exercise is completed if there's a submission for it
-        completed_exercises = db.query(func.count(ExerciseSubmission.id.distinct())).join(
-            Exercise, ExerciseSubmission.exercise_id == Exercise.id
-        ).join(
-            Content, Exercise.content_id == Content.id
-        ).filter(
-            ExerciseSubmission.user_id == user_id,
-            Content.is_published == True
-        ).scalar()
-        
-        # Total completed content includes both regular content and exercises
-        completed_content = completed_regular_content + completed_exercises
-
-        # Calculate progress percentage
-        progress_percentage = (completed_content / total_content) * 100
-
-        # Update enrollment
-        enrollment.progress_percentage = round(progress_percentage, 2)
-        enrollment.last_accessed_module_id = db.query(Content.module_id).filter(
-            Content.id == last_accessed_content_id
-        ).scalar()
-        enrollment.last_accessed_at = datetime.utcnow()
-
-        db.commit()
+            return progress
+            
+        except Exception as e:
+            db.rollback()
+            raise
 
     def get_overall_progress(
         self,
@@ -132,20 +123,25 @@ class ProgressService:
         user_id: str
     ) -> OverallProgressResponse:
         """
-        Get overall course progress for a user.
-        Includes exercises in progress calculation.
-        Optimized to avoid N+1 queries.
-        """
-        from sqlalchemy import case
-        from app.models.exercise import Exercise
-        from app.models.exercise_submission import ExerciseSubmission
+        Get overall course progress for a user with optimized queries.
         
+        Uses a single query with joins to fetch all module progress data,
+        avoiding N+1 query problems.
+        
+        Args:
+            db: Database session
+            user_id: User ID
+            
+        Returns:
+            OverallProgressResponse with complete progress data
+        """
         # Get enrollment
         enrollment = db.query(Enrollment).filter(
             Enrollment.user_id == user_id
         ).first()
 
-        # Query for regular content progress (non-exercise)
+        # Query for all modules with their content progress in a single query
+        # This uses LEFT JOINs to include modules even if they have no content
         modules_with_progress = (
             db.query(
                 Module,
@@ -157,10 +153,19 @@ class ProgressService:
                     )
                 ).label('completed_count')
             )
-            .outerjoin(Content, (Content.module_id == Module.id) & (Content.is_published == True))
+            .outerjoin(
+                Content,
+                and_(
+                    Content.module_id == Module.id,
+                    Content.is_published == True
+                )
+            )
             .outerjoin(
                 UserProgress,
-                (UserProgress.content_id == Content.id) & (UserProgress.user_id == user_id)
+                and_(
+                    UserProgress.content_id == Content.id,
+                    UserProgress.user_id == user_id
+                )
             )
             .filter(Module.is_published == True)
             .group_by(Module.id)
@@ -168,10 +173,7 @@ class ProgressService:
             .all()
         )
 
-        # Note: Exercise completions are already included in the main query above
-        # UserProgress is the single source of truth for all content types including exercises
-        # No need for separate exercise tracking
-
+        # Build module progress list
         module_progress_list = []
         total_content = 0
         completed_content = 0
@@ -185,9 +187,11 @@ class ProgressService:
             completed_content += module_completed
 
             # Calculate module progress percentage
-            module_progress_pct = (module_completed / module_total * 100) if module_total > 0 else 0
+            module_progress_pct = (
+                (module_completed / module_total * 100) if module_total > 0 else 0
+            )
 
-            if module_progress_pct == 100:
+            if module_progress_pct == 100 and module_total > 0:
                 completed_modules += 1
 
             module_progress_list.append(
@@ -201,11 +205,11 @@ class ProgressService:
             )
 
         # Calculate overall progress
-        overall_progress = (completed_content / total_content * 100) if total_content > 0 else 0
+        overall_progress = (
+            (completed_content / total_content * 100) if total_content > 0 else 0
+        )
 
         # Get content breakdown by type
-        from app.schemas.progress import ContentBreakdown, CompletedContentBreakdown
-        
         content_breakdown_query = db.query(
             Content.content_type,
             func.count(Content.id).label('count')
@@ -245,13 +249,11 @@ class ProgressService:
             elif content_type == 'rich_text':
                 completed_breakdown.rich_text = count
             elif content_type == 'exercise':
-                # Exercises are tracked in UserProgress (set by webhook)
                 completed_breakdown.exercises = count
 
         # Get last accessed content details
         last_accessed_content = None
         if enrollment and enrollment.last_accessed_module_id:
-            # Find the most recently accessed content in the last accessed module
             last_progress = db.query(UserProgress).join(
                 Content, UserProgress.content_id == Content.id
             ).filter(
@@ -285,50 +287,6 @@ class ProgressService:
             modules=module_progress_list
         )
 
-    def get_content_progress(
-        self,
-        db: Session,
-        user_id: str,
-        content_id: str
-    ) -> Optional[ContentProgressResponse]:
-        """
-        Get progress for a specific content item.
-        """
-        # Get content
-        content = db.query(Content).filter(Content.id == content_id).first()
-        if not content:
-            return None
-
-        # Get progress
-        progress = db.query(UserProgress).filter(
-            UserProgress.user_id == user_id,
-            UserProgress.content_id == content_id
-        ).first()
-
-        if not progress:
-            # Return default progress
-            return ContentProgressResponse(
-                content_id=content.id,
-                content_title=content.title,
-                content_type=content.content_type,
-                is_completed=False,
-                time_spent=0,
-                last_position=None,
-                completed_at=None,
-                updated_at=datetime.utcnow()
-            )
-
-        return ContentProgressResponse(
-            content_id=content.id,
-            content_title=content.title,
-            content_type=content.content_type,
-            is_completed=progress.is_completed,
-            time_spent=progress.time_spent,
-            last_position=progress.last_position,
-            completed_at=progress.completed_at,
-            updated_at=progress.updated_at
-        )
-
     def get_module_progress(
         self,
         db: Session,
@@ -336,26 +294,40 @@ class ProgressService:
         module_id: str
     ) -> List[ContentProgressResponse]:
         """
-        Get progress for all content items in a module.
-        Returns a list of ContentProgressResponse objects ordered by content order_index.
+        Get progress for all content items in a module using batch queries.
+        
+        Uses a single query with a join to fetch all content and progress data,
+        avoiding N+1 query problems.
+        
+        Args:
+            db: Database session
+            user_id: User ID
+            module_id: Module ID
+            
+        Returns:
+            List of ContentProgressResponse objects ordered by content order_index
         """
-        # Query all published content items for the module ordered by order_index
-        content_items = db.query(Content).filter(
-            Content.module_id == module_id,
-            Content.is_published == True
-        ).order_by(Content.order_index).all()
+        # Single query to get all content with their progress
+        content_with_progress = (
+            db.query(Content, UserProgress)
+            .outerjoin(
+                UserProgress,
+                and_(
+                    UserProgress.content_id == Content.id,
+                    UserProgress.user_id == user_id
+                )
+            )
+            .filter(
+                Content.module_id == module_id,
+                Content.is_published == True
+            )
+            .order_by(Content.order_index)
+            .all()
+        )
 
         progress_list = []
-
-        # For each content item, get existing progress or create default response
-        for content in content_items:
-            progress = db.query(UserProgress).filter(
-                UserProgress.user_id == user_id,
-                UserProgress.content_id == content.id
-            ).first()
-
+        for content, progress in content_with_progress:
             if progress:
-                # Use existing progress
                 progress_list.append(
                     ContentProgressResponse(
                         content_id=content.id,
@@ -369,7 +341,7 @@ class ProgressService:
                     )
                 )
             else:
-                # Create default response for content without progress
+                # No progress record exists yet
                 progress_list.append(
                     ContentProgressResponse(
                         content_id=content.id,
@@ -385,203 +357,120 @@ class ProgressService:
 
         return progress_list
 
-    # Old exercise response method - removed as part of 123FormBuilder integration
-    # def submit_exercise_response(
-    #     self,
-    #     db: Session,
-    #     user_id: str,
-    #     exercise_data: ExerciseResponseRequest
-    # ) -> ExerciseResponse:
-    #     """
-    #     Submit or update exercise response.
-    #     """
-    #     # This method was for the old exercise system that has been replaced
-
-    def check_course_completion(
-        self,
-        db: Session,
-        user_id: str
-    ) -> bool:
-        """
-        Check if user has completed all required content including exercises.
-        Returns True if course is completed.
-        """
-        from app.models.exercise import Exercise
-        from app.models.exercise_submission import ExerciseSubmission
-        
-        # Get total published content count (includes all content types including exercises)
-        total_content = db.query(func.count(Content.id)).filter(
-            Content.is_published == True
-        ).scalar()
-
-        if total_content == 0:
-            return False
-
-        # Get completed content count for this user (includes all content types including exercises)
-        # UserProgress is the single source of truth for all content completion
-        completed_content = db.query(func.count(UserProgress.id)).join(
-            Content, UserProgress.content_id == Content.id
-        ).filter(
-            UserProgress.user_id == user_id,
-            UserProgress.is_completed == True,
-            Content.is_published == True
-        ).scalar()
-
-        return completed_content >= total_content
-
-    def check_module_completion(
+    def get_content_progress(
         self,
         db: Session,
         user_id: str,
-        module_id: str
-    ) -> bool:
+        content_id: str
+    ) -> Optional[ContentProgressResponse]:
         """
-        Check if user has completed all content in a module including exercises.
-        Returns True if module is completed.
+        Get progress for a specific content item.
         
-        UserProgress is the single source of truth for all content types.
-        """
-        # Get total published content count in this module
-        total_content = db.query(func.count(Content.id)).filter(
-            Content.module_id == module_id,
-            Content.is_published == True
-        ).scalar()
-
-        if total_content == 0:
-            return False
-
-        # Get completed content count for this user in this module (includes all content types)
-        # UserProgress is the single source of truth
-        completed_content = db.query(func.count(UserProgress.id)).join(
-            Content, UserProgress.content_id == Content.id
-        ).filter(
-            UserProgress.user_id == user_id,
-            UserProgress.is_completed == True,
-            Content.module_id == module_id,
-            Content.is_published == True
-        ).scalar()
-
-        return completed_content >= total_content
-
-    def mark_course_completed(
-        self,
-        db: Session,
-        user_id: str
-    ) -> None:
-        """
-        Mark course as completed in enrollment.
-        """
-        enrollment = db.query(Enrollment).filter(
-            Enrollment.user_id == user_id
-        ).first()
-
-        if enrollment and not enrollment.completed_at:
-            enrollment.completed_at = datetime.utcnow()
-            enrollment.progress_percentage = 100.00
-            db.commit()
-    
-    def recalculate_all_enrollments(
-        self,
-        db: Session
-    ) -> int:
-        """
-        Recalculate progress for all enrollments.
-        This should be called when content is added, removed, or published/unpublished.
-        
+        Args:
+            db: Database session
+            user_id: User ID
+            content_id: Content ID
+            
         Returns:
-            Number of enrollments updated
+            ContentProgressResponse or None if content doesn't exist
         """
-        from app.models.user import User
-        
-        # Get all enrolled users
-        enrolled_users = db.query(User).filter(User.is_enrolled == True).all()
-        
-        updated_count = 0
-        
-        for user in enrolled_users:
-            enrollment = db.query(Enrollment).filter(
-                Enrollment.user_id == user.id
-            ).first()
-            
-            if not enrollment:
-                continue
-            
-            # Get total published content count
-            total_content = db.query(func.count(Content.id)).filter(
-                Content.is_published == True
-            ).scalar()
-            
-            if total_content == 0:
-                continue
-            
-            # Get completed content count for this user
-            completed_content = db.query(func.count(UserProgress.id)).join(
-                Content, UserProgress.content_id == Content.id
-            ).filter(
-                UserProgress.user_id == user.id,
-                UserProgress.is_completed == True,
-                Content.is_published == True
-            ).scalar()
-            
-            # Calculate new progress percentage
-            new_progress = (completed_content / total_content) * 100
-            
-            # Update enrollment
-            old_progress = enrollment.progress_percentage
-            enrollment.progress_percentage = round(new_progress, 2)
-            
-            # Check if course is still completed
-            if new_progress < 100 and enrollment.completed_at:
-                # Course was completed but now has new content - reset completion
-                enrollment.completed_at = None
-                updated_count += 1
-            elif new_progress >= 100 and not enrollment.completed_at:
-                # Course is now completed
-                enrollment.completed_at = datetime.utcnow()
-                updated_count += 1
-            elif old_progress != round(new_progress, 2):
-                # Progress changed but completion status didn't
-                updated_count += 1
-        
-        db.commit()
-        return updated_count
-    
+        # Single query with join
+        result = (
+            db.query(Content, UserProgress)
+            .outerjoin(
+                UserProgress,
+                and_(
+                    UserProgress.content_id == Content.id,
+                    UserProgress.user_id == user_id
+                )
+            )
+            .filter(Content.id == content_id)
+            .first()
+        )
+
+        if not result:
+            return None
+
+        content, progress = result
+
+        if progress:
+            return ContentProgressResponse(
+                content_id=content.id,
+                content_title=content.title,
+                content_type=content.content_type,
+                is_completed=progress.is_completed,
+                time_spent=progress.time_spent,
+                last_position=progress.last_position,
+                completed_at=progress.completed_at,
+                updated_at=progress.updated_at
+            )
+        else:
+            # No progress record exists yet
+            return ContentProgressResponse(
+                content_id=content.id,
+                content_title=content.title,
+                content_type=content.content_type,
+                is_completed=False,
+                time_spent=0,
+                last_position=None,
+                completed_at=None,
+                updated_at=datetime.utcnow()
+            )
+
     def can_access_content(
         self,
         db: Session,
         user_id: str,
         content_id: str
-    ) -> tuple[bool, Optional[str]]:
+    ) -> Tuple[bool, Optional[str]]:
         """
-        Check if user can access a content item based on sequential completion.
-        Returns (can_access, reason_if_blocked).
+        Check if user can access a content item based on sequential completion rules.
         
         Rules:
-        - First content in first module is always accessible
-        - To access any other content, the previous content must be completed
-        - Previous content is determined by order_index within the same module,
-          or the last content of the previous module
+        1. First content in first module is always accessible
+        2. To access any other content, the previous content must be completed
+        3. Previous content is determined by order_index within the same module
+        4. If first content in a module, the last content of previous module must be completed
+        
+        Args:
+            db: Database session
+            user_id: User ID
+            content_id: Content ID to check access for
+            
+        Returns:
+            Tuple of (can_access: bool, reason_if_blocked: Optional[str])
         """
-        # Get the requested content with its module
-        content = db.query(Content).filter(Content.id == content_id).first()
-        if not content:
+        # Get the requested content with its module in a single query
+        result = (
+            db.query(Content, Module)
+            .join(Module, Content.module_id == Module.id)
+            .filter(Content.id == content_id)
+            .first()
+        )
+        
+        if not result:
             return False, "Content not found"
         
-        # Get the module
-        module = db.query(Module).filter(Module.id == content.module_id).first()
-        if not module:
-            return False, "Module not found"
+        content, module = result
         
-        # Check if this is the first content in the first module
+        # Check if content is published
+        if not content.is_published:
+            return False, "Content is not published"
+        
+        # Check if module is published
+        if not module.is_published:
+            return False, "Module is not published"
+        
+        # Rule 1: First content in first module is always accessible
         first_module = db.query(Module).filter(
-            Module.course_id == module.course_id
+            Module.course_id == module.course_id,
+            Module.is_published == True
         ).order_by(Module.order_index).first()
         
-        if module.id == first_module.id and content.order_index == 0:
-            # First content is always accessible
+        if first_module and module.id == first_module.id and content.order_index == 0:
             return True, None
         
-        # Check if there's a previous content in the same module
+        # Rule 2 & 3: Check if there's a previous content in the same module
         if content.order_index > 0:
             # Get previous content in the same module
             previous_content = db.query(Content).filter(
@@ -603,33 +492,294 @@ class ProgressService:
                 
                 return True, None
         
-        # This is the first content in a module (but not the first module)
+        # Rule 4: This is the first content in a module (but not the first module)
         # Check if the previous module is completed
-        previous_module = db.query(Module).filter(
-            Module.course_id == module.course_id,
-            Module.order_index == module.order_index - 1,
-            Module.is_published == True
-        ).first()
-        
-        if previous_module:
-            # Get the last content of the previous module
-            last_content_of_previous_module = db.query(Content).filter(
-                Content.module_id == previous_module.id,
-                Content.is_published == True
-            ).order_by(Content.order_index.desc()).first()
+        if module.order_index > 0:
+            previous_module = db.query(Module).filter(
+                Module.course_id == module.course_id,
+                Module.order_index == module.order_index - 1,
+                Module.is_published == True
+            ).first()
             
-            if last_content_of_previous_module:
-                # Check if it's completed
-                last_content_progress = db.query(UserProgress).filter(
-                    UserProgress.user_id == user_id,
-                    UserProgress.content_id == last_content_of_previous_module.id,
-                    UserProgress.is_completed == True
-                ).first()
+            if previous_module:
+                # Get the last content of the previous module
+                last_content_of_previous_module = db.query(Content).filter(
+                    Content.module_id == previous_module.id,
+                    Content.is_published == True
+                ).order_by(Content.order_index.desc()).first()
                 
-                if not last_content_progress:
-                    return False, f"You must complete the previous module '{previous_module.title}' first"
+                if last_content_of_previous_module:
+                    # Check if it's completed
+                    last_content_progress = db.query(UserProgress).filter(
+                        UserProgress.user_id == user_id,
+                        UserProgress.content_id == last_content_of_previous_module.id,
+                        UserProgress.is_completed == True
+                    ).first()
+                    
+                    if not last_content_progress:
+                        return False, f"You must complete the previous module '{previous_module.title}' first"
         
         return True, None
+
+    def calculate_progress_percentage(
+        self,
+        completed_count: int,
+        total_count: int
+    ) -> float:
+        """
+        Calculate progress percentage from completed and total counts.
+        
+        Args:
+            completed_count: Number of completed items
+            total_count: Total number of items
+            
+        Returns:
+            Progress percentage rounded to 2 decimal places (0.00 to 100.00)
+        """
+        if total_count == 0:
+            return 0.0
+        
+        percentage = (completed_count / total_count) * 100
+        return round(percentage, 2)
+
+    def recalculate_enrollment_progress(
+        self,
+        db: Session,
+        user_id: str
+    ) -> None:
+        """
+        Recalculate and update enrollment progress percentage.
+        
+        This method:
+        1. Counts total published content
+        2. Counts completed content for the user
+        3. Calculates progress percentage
+        4. Updates enrollment record
+        5. Uses a transaction to ensure consistency
+        
+        Args:
+            db: Database session
+            user_id: User ID
+        """
+        try:
+            # Get enrollment
+            enrollment = db.query(Enrollment).filter(
+                Enrollment.user_id == user_id
+            ).first()
+
+            if not enrollment:
+                return
+
+            # Get total published content count
+            total_content = db.query(func.count(Content.id)).filter(
+                Content.is_published == True
+            ).scalar()
+
+            if total_content == 0:
+                return
+
+            # Get completed content count for this user
+            completed_content = db.query(func.count(UserProgress.id)).join(
+                Content, UserProgress.content_id == Content.id
+            ).filter(
+                UserProgress.user_id == user_id,
+                UserProgress.is_completed == True,
+                Content.is_published == True
+            ).scalar()
+
+            # Calculate progress percentage
+            progress_percentage = self.calculate_progress_percentage(
+                completed_content, total_content
+            )
+
+            # Update enrollment
+            enrollment.progress_percentage = Decimal(str(progress_percentage))
+            enrollment.last_accessed_at = datetime.utcnow()
+
+            db.commit()
+            
+        except Exception as e:
+            db.rollback()
+            raise
+
+    def check_course_completion(
+        self,
+        db: Session,
+        user_id: str
+    ) -> bool:
+        """
+        Check if user has completed all required content.
+        
+        Args:
+            db: Database session
+            user_id: User ID
+            
+        Returns:
+            True if all published content is completed, False otherwise
+        """
+        # Get total published content count
+        total_content = db.query(func.count(Content.id)).filter(
+            Content.is_published == True
+        ).scalar()
+
+        if total_content == 0:
+            return False
+
+        # Get completed content count for this user
+        completed_content = db.query(func.count(UserProgress.id)).join(
+            Content, UserProgress.content_id == Content.id
+        ).filter(
+            UserProgress.user_id == user_id,
+            UserProgress.is_completed == True,
+            Content.is_published == True
+        ).scalar()
+
+        return completed_content >= total_content
+
+    def check_module_completion(
+        self,
+        db: Session,
+        user_id: str,
+        module_id: str
+    ) -> bool:
+        """
+        Check if user has completed all content in a module.
+        
+        Args:
+            db: Database session
+            user_id: User ID
+            module_id: Module ID
+            
+        Returns:
+            True if all published content in module is completed, False otherwise
+        """
+        # Get total published content count in this module
+        total_content = db.query(func.count(Content.id)).filter(
+            Content.module_id == module_id,
+            Content.is_published == True
+        ).scalar()
+
+        if total_content == 0:
+            return False
+
+        # Get completed content count for this user in this module
+        completed_content = db.query(func.count(UserProgress.id)).join(
+            Content, UserProgress.content_id == Content.id
+        ).filter(
+            UserProgress.user_id == user_id,
+            UserProgress.is_completed == True,
+            Content.module_id == module_id,
+            Content.is_published == True
+        ).scalar()
+
+        return completed_content >= total_content
+
+    def mark_course_completed(
+        self,
+        db: Session,
+        user_id: str
+    ) -> None:
+        """
+        Mark course as completed in enrollment.
+        
+        Uses atomic transaction to ensure consistency.
+        
+        Args:
+            db: Database session
+            user_id: User ID
+        """
+        try:
+            enrollment = db.query(Enrollment).filter(
+                Enrollment.user_id == user_id
+            ).first()
+
+            if enrollment and not enrollment.completed_at:
+                enrollment.completed_at = datetime.utcnow()
+                enrollment.progress_percentage = Decimal("100.00")
+                db.commit()
+                
+        except Exception as e:
+            db.rollback()
+            raise
+
+    def recalculate_all_enrollments(
+        self,
+        db: Session
+    ) -> int:
+        """
+        Recalculate progress for all enrollments.
+        
+        This should be called when:
+        - Content is added, removed, or published/unpublished
+        - Course structure changes
+        
+        The method:
+        1. Iterates through all enrollments
+        2. Recalculates progress percentage for each
+        3. Resets completion status if new content was added
+        4. Marks as complete if all content is now finished
+        
+        Args:
+            db: Database session
+            
+        Returns:
+            Number of enrollments updated
+        """
+        try:
+            # Get all enrollments
+            enrollments = db.query(Enrollment).all()
+            
+            updated_count = 0
+            
+            # Get total published content count (same for all users)
+            total_content = db.query(func.count(Content.id)).filter(
+                Content.is_published == True
+            ).scalar()
+            
+            if total_content == 0:
+                return 0
+            
+            for enrollment in enrollments:
+                # Get completed content count for this user
+                completed_content = db.query(func.count(UserProgress.id)).join(
+                    Content, UserProgress.content_id == Content.id
+                ).filter(
+                    UserProgress.user_id == enrollment.user_id,
+                    UserProgress.is_completed == True,
+                    Content.is_published == True
+                ).scalar()
+                
+                # Calculate new progress percentage
+                new_progress = self.calculate_progress_percentage(
+                    completed_content, total_content
+                )
+                
+                # Store old values for comparison
+                old_progress = float(enrollment.progress_percentage) if enrollment.progress_percentage else 0.0
+                was_completed = enrollment.completed_at is not None
+                
+                # Update progress percentage
+                enrollment.progress_percentage = Decimal(str(new_progress))
+                
+                # Handle completion status changes
+                if new_progress < 100 and was_completed:
+                    # Course was completed but now has new content - reset completion
+                    enrollment.completed_at = None
+                    updated_count += 1
+                elif new_progress >= 100 and not was_completed:
+                    # Course is now completed
+                    enrollment.completed_at = datetime.utcnow()
+                    updated_count += 1
+                elif abs(old_progress - new_progress) > 0.01:
+                    # Progress changed but completion status didn't
+                    updated_count += 1
+            
+            db.commit()
+            return updated_count
+            
+        except Exception as e:
+            db.rollback()
+            raise
 
 
 # Create singleton instance

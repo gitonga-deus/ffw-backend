@@ -420,18 +420,27 @@ class CertificateService:
             
             # Upload to Vercel Blob
             filename = f"certificates/{cert_id}.pdf"
-            certificate_url = await storage_service.upload_file(
-                file_data=output_packet.read(),
-                filename=filename,
-                content_type="application/pdf"
-            )
-            
-            if not certificate_url:
-                # Fallback: use a placeholder URL if upload fails
+            try:
+                print(f"Uploading certificate to storage: {filename}")
+                certificate_url = await storage_service.upload_file(
+                    file_data=output_packet.read(),
+                    filename=filename,
+                    content_type="application/pdf"
+                )
+                
+                if not certificate_url:
+                    # Fallback: use a placeholder URL if upload fails
+                    certificate_url = f"{self.backend_url}/certificates/{cert_id}.pdf"
+                    print(f"Warning: Certificate upload failed. Using placeholder URL: {certificate_url}")
+                else:
+                    print(f"Certificate uploaded successfully: {certificate_url}")
+            except Exception as upload_error:
+                # If upload fails, use placeholder URL and continue
                 certificate_url = f"{self.backend_url}/certificates/{cert_id}.pdf"
-                print(f"Warning: Certificate upload failed. Using placeholder URL: {certificate_url}")
+                print(f"Error uploading certificate: {upload_error}. Using placeholder URL: {certificate_url}")
             
             # Create certificate record in database
+            print(f"Creating certificate record in database for user {user.id}")
             certificate = Certificate(
                 user_id=user.id,
                 certification_id=cert_id,
@@ -442,13 +451,18 @@ class CertificateService:
             )
             
             db.add(certificate)
+            print(f"Committing certificate to database...")
             db.commit()
+            print(f"Certificate committed successfully")
             db.refresh(certificate)
+            print(f"Certificate created with ID: {certificate.certification_id}")
             
             return certificate
             
         except Exception as e:
             print(f"Error generating certificate: {str(e)}")
+            import traceback
+            traceback.print_exc()
             db.rollback()
             return None
     
