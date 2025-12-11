@@ -108,8 +108,9 @@ class ProgressService:
             db.commit()
             db.refresh(progress)
 
-            # Recalculate enrollment progress
-            self.recalculate_enrollment_progress(db, user_id)
+            # Only recalculate enrollment progress when marking as complete
+            if progress_data.is_completed:
+                self.recalculate_enrollment_progress(db, user_id)
 
             return progress
             
@@ -541,6 +542,36 @@ class ProgressService:
         
         percentage = (completed_count / total_count) * 100
         return round(percentage, 2)
+
+    def update_last_accessed(
+        self,
+        db: Session,
+        user_id: str,
+        module_id: str
+    ) -> None:
+        """
+        Update the last accessed module for a user.
+        
+        This allows users to resume where they left off.
+        
+        Args:
+            db: Database session
+            user_id: User ID
+            module_id: Module ID that was accessed
+        """
+        try:
+            enrollment = db.query(Enrollment).filter(
+                Enrollment.user_id == user_id
+            ).first()
+
+            if enrollment:
+                enrollment.last_accessed_module_id = module_id
+                enrollment.last_accessed_at = datetime.utcnow()
+                db.commit()
+                
+        except Exception as e:
+            db.rollback()
+            raise
 
     def recalculate_enrollment_progress(
         self,

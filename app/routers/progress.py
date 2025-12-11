@@ -466,6 +466,86 @@ async def get_module_progress(
         )
 
 
+@router.post("/access/{module_id}")
+async def track_module_access(
+    module_id: str,
+    current_user: User = Depends(get_current_enrolled_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Track when a user accesses a module (for "resume where you left off").
+    
+    Args:
+        module_id: ID of the module being accessed
+        current_user: Authenticated enrolled user
+        db: Database session
+        
+    Returns:
+        Success message
+        
+    Raises:
+        404: Module not found
+        503: Database connection error
+    """
+    try:
+        # Validate module exists
+        try:
+            module = db.query(Module).filter(
+                Module.id == module_id,
+                Module.is_published == True
+            ).first()
+        except OperationalError as e:
+            logger.error(f"Database connection error while fetching module: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=ErrorResponse.format_error(
+                    "database_error",
+                    "Service temporarily unavailable. Please try again later."
+                )
+            )
+        
+        if not module:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=ErrorResponse.format_error(
+                    "not_found",
+                    "Module not found or not published",
+                    {"module_id": module_id}
+                )
+            )
+        
+        # Update last accessed
+        try:
+            progress_service.update_last_accessed(
+                db=db,
+                user_id=current_user.id,
+                module_id=module_id
+            )
+        except OperationalError as e:
+            logger.error(f"Database connection error updating last accessed: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=ErrorResponse.format_error(
+                    "database_error",
+                    "Service temporarily unavailable. Please try again later."
+                )
+            )
+        
+        return {"message": "Module access tracked successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error tracking module access: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=ErrorResponse.format_error(
+                "internal_error",
+                "An unexpected error occurred. Please try again later."
+            )
+        )
+
+
 @router.get("/content/{content_id}", response_model=ContentProgressResponse)
 async def get_content_progress(
     content_id: str,
