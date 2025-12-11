@@ -16,3 +16,4 @@ alembic.ini
 .vercel
 
 /scripts
+course.json
