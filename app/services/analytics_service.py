@@ -142,18 +142,33 @@ class AnalyticsService:
         days_30_ago = now - timedelta(days=30)
         
         # Single query for all enrollment counts and averages
-        enrollment_stats = db.query(
-            func.count(Enrollment.id).label('total'),
-            func.sum(case((Enrollment.completed_at.is_(None), 1), else_=0)).label('active'),
-            func.sum(case((Enrollment.completed_at.isnot(None), 1), else_=0)).label('completed'),
-            func.avg(Enrollment.progress_percentage).label('avg_progress'),
-            func.avg(
+        # Calculate average completion days (works for both SQLite and PostgreSQL)
+        from app.config import settings
+        if "postgresql" in settings.database_url:
+            # PostgreSQL: use EXTRACT(EPOCH FROM ...) to get seconds, then convert to days
+            avg_completion_expr = func.avg(
+                case(
+                    (Enrollment.completed_at.isnot(None),
+                     func.extract('epoch', Enrollment.completed_at - Enrollment.enrolled_at) / 86400),
+                    else_=None
+                )
+            )
+        else:
+            # SQLite: use julianday()
+            avg_completion_expr = func.avg(
                 case(
                     (Enrollment.completed_at.isnot(None),
                      func.julianday(Enrollment.completed_at) - func.julianday(Enrollment.enrolled_at)),
                     else_=None
                 )
-            ).label('avg_completion_days')
+            )
+        
+        enrollment_stats = db.query(
+            func.count(Enrollment.id).label('total'),
+            func.sum(case((Enrollment.completed_at.is_(None), 1), else_=0)).label('active'),
+            func.sum(case((Enrollment.completed_at.isnot(None), 1), else_=0)).label('completed'),
+            func.avg(Enrollment.progress_percentage).label('avg_progress'),
+            avg_completion_expr.label('avg_completion_days')
         ).first()
         
         total_enrollments = enrollment_stats.total or 0
