@@ -178,12 +178,14 @@ async def update_progress(
         
         # Update progress
         try:
+            logger.info(f"Updating progress for user {current_user.id}, content {content_id}, completed={progress_data.is_completed}")
             progress = progress_service.update_progress(
                 db=db,
                 user_id=current_user.id,
                 content_id=content_id,
                 progress_data=progress_data
             )
+            logger.info(f"Progress updated successfully for user {current_user.id}, content {content_id}")
         except IntegrityError as e:
             logger.warning(f"Concurrent update conflict for user {current_user.id}, content {content_id}: {str(e)}")
             db.rollback()

@@ -108,7 +108,9 @@ class ProgressService:
             db.commit()
             db.refresh(progress)
 
-            # Only recalculate enrollment progress when marking as complete
+            # Recalculate enrollment progress on completion
+            # For partial updates, we skip recalculation to improve performance
+            # The enrollment progress is primarily based on completed content
             if progress_data.is_completed:
                 self.recalculate_enrollment_progress(db, user_id)
 
@@ -432,6 +434,7 @@ class ProgressService:
         2. To access any other content, the previous content must be completed
         3. Previous content is determined by order_index within the same module
         4. If first content in a module, the last content of previous module must be completed
+        5. Already completed content is always accessible (for review)
         
         Args:
             db: Database session
@@ -461,6 +464,16 @@ class ProgressService:
         # Check if module is published
         if not module.is_published:
             return False, "Module is not published"
+        
+        # Rule 5: Already completed content is always accessible (for review)
+        existing_progress = db.query(UserProgress).filter(
+            UserProgress.user_id == user_id,
+            UserProgress.content_id == content_id,
+            UserProgress.is_completed == True
+        ).first()
+        
+        if existing_progress:
+            return True, None
         
         # Rule 1: First content in first module is always accessible
         first_module = db.query(Module).filter(
@@ -492,6 +505,10 @@ class ProgressService:
                     return False, f"You must complete '{previous_content.title}' first"
                 
                 return True, None
+            else:
+                # No previous content found (might be unpublished)
+                # Allow access if this is effectively the first published content
+                return True, None
         
         # Rule 4: This is the first content in a module (but not the first module)
         # Check if the previous module is completed
@@ -519,6 +536,13 @@ class ProgressService:
                     
                     if not last_content_progress:
                         return False, f"You must complete the previous module '{previous_module.title}' first"
+                else:
+                    # Previous module has no published content, allow access
+                    return True, None
+            else:
+                # No previous module found (might be unpublished)
+                # Allow access if this is effectively the first published module
+                return True, None
         
         return True, None
 
