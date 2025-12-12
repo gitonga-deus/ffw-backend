@@ -149,32 +149,35 @@ async def update_progress(
                 )
             )
         
-        # Check if user can access this content (sequential access validation)
-        try:
-            can_access, reason = progress_service.can_access_content(
-                db=db,
-                user_id=current_user.id,
-                content_id=content_id
-            )
-        except OperationalError as e:
-            logger.error(f"Database connection error during access check: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=ErrorResponse.format_error(
-                    "database_error",
-                    "Service temporarily unavailable. Please try again later."
+        # Only check sequential access when marking as complete
+        # For partial progress updates (watching video, reading), skip the check
+        # The frontend already handles locking UI, and this prevents race conditions
+        if progress_data.is_completed:
+            try:
+                can_access, reason = progress_service.can_access_content(
+                    db=db,
+                    user_id=current_user.id,
+                    content_id=content_id
                 )
-            )
-        
-        if not can_access:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=ErrorResponse.format_error(
-                    "access_denied",
-                    reason or "You cannot access this content yet",
-                    {"content_id": content_id}
+            except OperationalError as e:
+                logger.error(f"Database connection error during access check: {str(e)}")
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=ErrorResponse.format_error(
+                        "database_error",
+                        "Service temporarily unavailable. Please try again later."
+                    )
                 )
-            )
+            
+            if not can_access:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=ErrorResponse.format_error(
+                        "access_denied",
+                        reason or "You cannot access this content yet",
+                        {"content_id": content_id}
+                    )
+                )
         
         # Update progress
         try:
