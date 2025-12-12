@@ -85,8 +85,6 @@ class ProgressService:
             if progress:
                 # Update existing progress
                 progress.is_completed = progress_data.is_completed
-                progress.time_spent = progress_data.time_spent
-                progress.last_position = progress_data.last_position
                 progress.updated_at = datetime.utcnow()
                 
                 # Set completed_at timestamp on first completion
@@ -98,8 +96,8 @@ class ProgressService:
                     user_id=user_id,
                     content_id=content_id,
                     is_completed=progress_data.is_completed,
-                    time_spent=progress_data.time_spent,
-                    last_position=progress_data.last_position,
+                    time_spent=0,
+                    last_position=None,
                     completed_at=datetime.utcnow() if progress_data.is_completed else None
                 )
                 db.add(progress)

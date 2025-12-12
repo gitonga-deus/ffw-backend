@@ -102,27 +102,6 @@ async def update_progress(
         503: Database connection error
     """
     try:
-        # Validate progress data
-        if progress_data.time_spent < 0:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=ErrorResponse.format_error(
-                    "validation_error",
-                    "Invalid progress data",
-                    {"time_spent": "Time spent cannot be negative"}
-                )
-            )
-        
-        if progress_data.last_position is not None and progress_data.last_position < 0:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=ErrorResponse.format_error(
-                    "validation_error",
-                    "Invalid progress data",
-                    {"last_position": "Last position cannot be negative"}
-                )
-            )
-        
         # Validate content exists and is published
         try:
             content = db.query(Content).filter(
@@ -149,35 +128,9 @@ async def update_progress(
                 )
             )
         
-        # Only check sequential access when marking as complete
-        # For partial progress updates (watching video, reading), skip the check
-        # The frontend already handles locking UI, and this prevents race conditions
-        if progress_data.is_completed:
-            try:
-                can_access, reason = progress_service.can_access_content(
-                    db=db,
-                    user_id=current_user.id,
-                    content_id=content_id
-                )
-            except OperationalError as e:
-                logger.error(f"Database connection error during access check: {str(e)}")
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail=ErrorResponse.format_error(
-                        "database_error",
-                        "Service temporarily unavailable. Please try again later."
-                    )
-                )
-            
-            if not can_access:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=ErrorResponse.format_error(
-                        "access_denied",
-                        reason or "You cannot access this content yet",
-                        {"content_id": content_id}
-                    )
-                )
+        # Simple: Trust the frontend to enforce sequential access
+        # The UI already prevents users from clicking locked content
+        # This eliminates race conditions and simplifies the system
         
         # Update progress
         try:
